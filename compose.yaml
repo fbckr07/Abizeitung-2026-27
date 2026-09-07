@@ -14,7 +14,6 @@
       - aspnet_keys:/app/keys
     depends_on:
       - postgres
-      - adminer
   
   postgres:
     image: postgres:latest
