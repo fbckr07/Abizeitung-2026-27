@@ -17,7 +17,6 @@
   
   postgres:
     image: postgres:latest
-    container_name: shop-postgres
     environment:
       POSTGRES_DB: abizeitung
       POSTGRES_USER: dbuser
@@ -25,8 +24,8 @@
     ports:
       - "5437:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - sql_data:/var/lib/postgresql
 
 volumes:
-  postgres_data:
+  sql_data:
   aspnet_keys:
