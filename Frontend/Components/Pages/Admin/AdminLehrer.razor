@@ -1,0 +1,157 @@
+@page "/admin/lehrer"
+@using Frontend.Data.DTOs
+@attribute [Authorize(Roles = "Admin")]
+@layout AdminLayout
+@inject ITeacherManagementService TeacherService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JsRuntime
+
+<PageTitle>Lehrer - Admin</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Lehrer</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mb-4" OnClick="BeginCreate">
+    Neuer Lehrer
+</MudButton>
+
+@if (_newTeacher is not null)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudText Typo="Typo.h6" GutterBottom="true">Neuer Lehrer</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_newTeacher.Name" Label="Name" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="Gender" @bind-Value="_newTeacher.Gender" Label="Geschlecht">
+                    <MudSelectItem Value="Gender.Male">Männlich</MudSelectItem>
+                    <MudSelectItem Value="Gender.Female">Weiblich</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+        <MudStack Row="true" Class="mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveNewAsync">Speichern</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => _newTeacher = null)">Abbrechen</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+<MudTable Items="_teacher" Hover="true" Loading="_teacher is null">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Geschlecht</MudTh>
+        <MudTh>Aktionen</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        @if (_editingTeacher is not null && _editingTeacher.Id == context.Id)
+        {
+            <MudTd DataLabel="Name"><MudTextField @bind-Value="_editingTeacher.Name" /></MudTd>
+            <MudTd DataLabel="Geschlecht">
+                <MudSelect T="Gender" @bind-Value="_editingTeacher.Gender">
+                    <MudSelectItem Value="Gender.Male">Männlich</MudSelectItem>
+                    <MudSelectItem Value="Gender.Female">Weiblich</MudSelectItem>
+                </MudSelect>
+            </MudTd>
+            <MudTd DataLabel="Aktionen">
+                <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Primary" OnClick="SaveEditAsync" />
+                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editingTeacher = null)" />
+            </MudTd>
+        }
+        else
+        {
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Geschlecht">@context.Gender</MudTd>
+            <MudTd DataLabel="Aktionen">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => BeginEdit(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                               Disabled="!context.KannGeloeschtWerden"
+                               OnClick="@(() => DeleteAsync(context))" />
+            </MudTd>
+        }
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private IReadOnlyList<TeacherListItemDto>? _teacher;
+    private EditingModel? _newTeacher;
+    private EditingModel? _editingTeacher;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _teacher = await TeacherService.GetAllAsync();
+    }
+
+    private void BeginCreate()
+    {
+        _newTeacher = new EditingModel();
+    }
+
+    private void BeginEdit(TeacherListItemDto teacher)
+    {
+        _editingTeacher = new EditingModel
+        {
+            Id = teacher.Id,
+            Name = teacher.Name,
+            Gender = teacher.Gender,
+        };
+    }
+
+    private async Task SaveNewAsync()
+    {
+        if (_newTeacher is null || string.IsNullOrWhiteSpace(_newTeacher.Name))
+        {
+            Snackbar.Add("Bitte einen Namen angeben.", Severity.Warning);
+            return;
+        }
+
+        await TeacherService.CreateAsync(_newTeacher.Name, _newTeacher.Gender);
+        _newTeacher = null;
+        await LoadAsync();
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (_editingTeacher is null)
+        {
+            return;
+        }
+
+        await TeacherService.UpdateAsync(_editingTeacher.Id, _editingTeacher.Name, _editingTeacher.Gender);
+        _editingTeacher = null;
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(TeacherListItemDto teacher)
+    {
+        var bestaetigt = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Soll \"{teacher.Name}\" geläscht werden?");
+
+        if (!bestaetigt)
+        {
+            return;
+        }
+
+        try
+        {
+            await TeacherService.DeleteAsync(teacher.Id);
+            await LoadAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private sealed class EditingModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public Gender Gender { get; set; }
+    }
+}

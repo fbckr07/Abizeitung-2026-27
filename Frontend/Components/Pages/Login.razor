@@ -1,0 +1,82 @@
+@page "/login"
+@using Frontend.Services
+@layout LoginLayout
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>Login</PageTitle>
+
+<MudGrid Justify="Justify.Center" Class="mt-8">
+    <MudItem xs="12" sm="8" md="5" lg="4">
+        <MudPaper Class="pa-6" Elevation="2">
+            <MudText Typo="Typo.h4" GutterBottom="true">Login</MudText>
+            <MudText Typo="Typo.body2" Class="mb-4">
+                Login Code
+            </MudText>
+
+            @if (_isLockedOut)
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-4">
+                    @AuthRateLimiting.FormatDuration(AuthRateLimiting.Lockout) Minuten gesperrt.
+                </MudAlert>
+            }
+            else
+            {
+                @if (Error == "invalid")
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-4">
+                        Falscher Code.
+                    </MudAlert>
+                }
+
+                <form method="post" action="/auth/login">
+                    @if (!string.IsNullOrEmpty(ReturnUrl))
+                    {
+                        <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+                    }
+                    <MudTextField @bind-Value="_code"
+                                  Label="Login-Code"
+                                  Variant="Variant.Outlined"
+                                  MaxLength="6"
+                                  Counter="6"
+                                  Immediate="true"
+                                  AutoFocus="true"
+                                  Disabled="_isLockedOut"
+                                  Adornment="Adornment.Start"
+                                  Class="mb-4"
+                                  @attributes="_codeFieldAttributes" />
+                    <MudButton ButtonType="ButtonType.Submit"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               Disabled="_isLockedOut">
+                        Anmelden
+                    </MudButton>
+                </form>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private string _code = string.Empty;
+    private bool _isLockedOut;
+
+    private static readonly Dictionary<string, object> _codeFieldAttributes = new()
+    {
+        ["name"] = "code",
+        ["autocomplete"] = "off"
+    };
+
+    protected override void OnInitialized()
+    {
+        var httpContext = HttpContextAccessor.HttpContext;
+        _isLockedOut = Error == "locked"
+            || (httpContext is not null && AuthRateLimiting.HasLockoutCookie(httpContext));
+    }
+}

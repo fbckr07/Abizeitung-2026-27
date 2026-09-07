@@ -1,0 +1,53 @@
+@page "/ranking/lehrer"
+@attribute [Authorize(Policy = Permissions.RankingLehrer)]
+@using System.Security.Claims
+@using Frontend.Data.Records
+@inject IVotingTeacherService VotingService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Ranking – Lehrer</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Ranking – Lehrer</MudText>
+
+@if (_categories is null)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else if (_categories.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">Aktuell sind keine aktiven Kategorien vorhanden.</MudAlert>
+}
+else
+{
+    <MudGrid>
+        @foreach (var kategorie in _categories)
+        {
+            <VotingCategoryCard TKandidat="Teacher"
+                                  Category="kategorie"
+                                  VoterId="_studentId"
+                                  CandidateLoading="(id, ct) => VotingService.GetCandidatesForCategoryAsync(id, ct)"
+                                  SaveVote="(kategorieId, kandidatenId) => VotingService.UpsertVoteAsync(kategorieId, _studentId, kandidatenId)"
+                                  GroupDescription="Lehrer"
+                                  SelectionLabel="Lehrkraft (trigger) auswählen" />
+        }
+    </MudGrid>
+}
+
+@code {
+    private IReadOnlyList<CategoryWithSelectionDto<Teacher>>? _categories;
+    private Guid _studentId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!Guid.TryParse(idClaim, out _studentId))
+        {
+            _categories = [];
+            return;
+        }
+
+        _categories = await VotingService.GetCategoriesWithOwnSelectionAsync(_studentId);
+    }
+}

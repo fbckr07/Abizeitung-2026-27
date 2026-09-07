@@ -1,0 +1,74 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider @ref="_themeProvider" Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+	<MudAppBar Color="Color.Dark" Elevation="1">
+		<MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
+		<MudText Typo="Typo.h6">Abizeitung Admin</MudText>
+	</MudAppBar>
+
+	<MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive" Elevation="1">
+		<MudNavMenu Class="d-flex flex-column h-100">
+			<MudNavLink Href="/admin" Match="NavLinkMatch.All">Übersicht</MudNavLink>
+			<MudNavLink Href="/admin/admins">Admins</MudNavLink>
+			<MudNavLink Href="/admin/schueler">Schüler</MudNavLink>
+			<MudNavLink Href="/admin/lehrer">Lehrer</MudNavLink>
+			<MudNavLink Href="/admin/moderation">Moderation</MudNavLink>
+			<MudNavLink Href="/admin/fragen">Fragen</MudNavLink>
+			<MudNavLink Href="/admin/ergebnisse">Ergebnisse</MudNavLink>
+			<MudNavLink Href="/admin/verbesserungen">Feedback</MudNavLink>
+
+			<form method="post" action="/admin/auth/logout" class="px-2 mt-2">
+				<MudButton ButtonType="ButtonType.Submit"
+				           Variant="Variant.Outlined"
+				           Color="Color.Secondary"
+				           FullWidth="true"
+				           StartIcon="@Icons.Material.Filled.Logout">
+					Logout
+				</MudButton>
+			</form>
+
+			<MudSpacer />
+
+			@* <MudButton Href="/adminer" *@
+			@*            Variant="Variant.Filled" *@
+			@*            Color="Color.Primary" *@
+			@*            FullWidth="true" *@
+			@*            Class="mx-2 mb-2" *@
+			@*            StartIcon="@Icons.Material.Filled.Storage"> *@
+			@* 	Adminer *@
+			@* </MudButton> *@
+		</MudNavMenu>
+	</MudDrawer>
+
+	<MudMainContent Class="pa-6 app-main-content">
+		@Body
+	</MudMainContent>
+</MudLayout>
+
+@code {
+	private bool _drawerOpen = true;
+
+	private void ToggleDrawer()
+	{
+		_drawerOpen = !_drawerOpen;
+	}
+	
+	private MudThemeProvider _themeProvider;
+	
+	private MudTheme _theme = new()
+	{
+		PaletteLight = new PaletteLight()
+		{
+			Primary = "#9C2031"
+		},
+		LayoutProperties = new LayoutProperties()
+		{
+			DefaultBorderRadius = "10"
+		}	
+	};
+}

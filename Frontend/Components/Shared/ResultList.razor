@@ -1,0 +1,52 @@
+@if (Categories is null)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else if (Categories.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">Keine Kategorien vorhanden.</MudAlert>
+}
+else
+{
+    @foreach (var category in Categories)
+    {
+        <MudCard Class="mb-3">
+            <MudCardContent>
+                <MudText Typo="Typo.h6">
+                    @category.QuestionText
+                    <MudChip T="string" Size="Size.Small" Class="ml-2">@(category.IsCrossGender ? "Beide Geschlechter" : category.Gender.ToString())</MudChip>
+                </MudText>
+                @if (category.TopThree.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Noch keine Stimmen.</MudText>
+                }
+                else
+                {
+                    <MudSimpleTable Dense="true" Class="mt-2">
+                        <thead>
+                            <tr>
+                                <th>Platz</th>
+                                <th>Name</th>
+                                <th>Stimmen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in category.TopThree)
+                            {
+                                <tr>
+                                    <td>@entry.Place</td>
+                                    <td>@entry.Name</td>
+                                    <td>@entry.Votes</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+            </MudCardContent>
+        </MudCard>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ResultCategoryDto>? Categories { get; set; }
+}

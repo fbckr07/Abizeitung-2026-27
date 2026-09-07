@@ -1,0 +1,122 @@
+@page "/schueler"
+@attribute [Authorize(Policy = Permissions.SchülerKommentare)]
+@using System.Security.Claims
+@using Frontend.Data.DTOs
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IStudentManagementService StudentService
+@inject ICommentService CommentService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Schüler</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Schüler</MudText>
+
+<MudTextField @bind-Value="_search"
+			  Label="Schüler suchen"
+			  Placeholder="Name eingeben"
+			  Adornment="Adornment.Start"
+			  AdornmentIcon="@Icons.Material.Filled.Search"
+			  Immediate="true"
+			  Clearable="true"
+			  Class="mb-4" />
+
+@if (_students is null)
+{
+	<MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else if (FilteredStudents.Count == 0)
+{
+	<MudAlert Severity="Severity.Info">Keine Schüler für diese Suche gefunden.</MudAlert>
+}
+else
+{
+	<MudTable Items="FilteredStudents" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="1">
+		<HeaderContent>
+			<MudTh>Name</MudTh>
+			<MudTh>Kurs</MudTh>
+			<MudTh>Geschlecht</MudTh>
+			<MudTh></MudTh>
+		</HeaderContent>
+		<RowTemplate>
+			<MudTd DataLabel="Name">
+				<MudText Typo="Typo.body1" Style="font-weight: 600;">@context.Name</MudText>
+			</MudTd>
+			<MudTd DataLabel="Kurs">@context.Course</MudTd>
+			<MudTd DataLabel="Geschlecht">@GenderDisplayName(context.Gender)</MudTd>
+			<MudTd DataLabel="Aktion" Class="text-right">
+				@if (context.IsOwn)
+				{
+					<MudChip T="string" Color="Color.Primary" Size="Size.Small">Du</MudChip>
+				}
+				else
+				{
+					<MudIconButton Icon="@Icons.Material.Filled.Comment"
+								   Color="Color.Primary"
+								   Size="Size.Small"
+								   OnClick="@(() => KommentarSchreibenAsync(context))" />
+				}
+			</MudTd>
+		</RowTemplate>
+	</MudTable>
+}
+
+@code {
+	private IReadOnlyList<StudentOverviewDto>? _students;
+	private string? _search;
+	private Guid _ownStudentId;
+
+	private IReadOnlyList<StudentOverviewDto> FilteredStudents =>
+		string.IsNullOrWhiteSpace(_search)
+			? _students ?? []
+			: (_students ?? []).Where(s => s.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+
+	protected override async Task OnInitializedAsync()
+	{
+		var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+		var idClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+		if (!Guid.TryParse(idClaim, out _ownStudentId))
+		{
+			_students = [];
+			return;
+		}
+
+		_students = await StudentService.GetOverviewAsync(_ownStudentId);
+	}
+
+	private async Task KommentarSchreibenAsync(StudentOverviewDto ziel)
+	{
+		var dialog = await DialogService.ShowAsync<CommentDialog>(
+			$"Kommentar an {ziel.Name}",
+			new DialogParameters { [nameof(CommentDialog.TargetName)] = ziel.Name },
+			new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true });
+
+		var result = await dialog.Result;
+		if (result is null || result.Canceled || result.Data is not string text)
+		{
+			return;
+		}
+
+		try
+		{
+			await CommentService.CreateAsync(_ownStudentId, ziel.Id, text);
+			Snackbar.Add("Kommentar gespeichert und wartet auf Bestätigung.", Severity.Success);
+		}
+		catch (ArgumentException ex)
+		{
+			Snackbar.Add(ex.Message, Severity.Error);
+		}
+		catch (InvalidOperationException ex)
+		{
+			Snackbar.Add(ex.Message, Severity.Error);
+		}
+	}
+
+	private static string GenderDisplayName(Gender gender) => gender switch
+	{
+		Gender.Male => "Männlich",
+		Gender.Female => "Weiblich",
+		_ => "Divers"
+	};
+}

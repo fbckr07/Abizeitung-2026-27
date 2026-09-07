@@ -1,0 +1,40 @@
+@page "/admin/ergebnisse"
+@attribute [Authorize(Roles = "Admin")]
+@layout AdminLayout
+@inject IResultService ResultService
+
+<PageTitle>Ergebnisse</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Ergebnisse</MudText>
+
+<MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true">
+    <MudTabPanel Text="Schüler-Ergebnisse">
+        <MudButton Href="/admin/ergebnisse/export/schueler"
+                   Variant="Variant.Outlined"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   Class="mb-4">
+            Als CSV exportieren
+        </MudButton>
+        <ResultList Categories="_studentResults" />
+    </MudTabPanel>
+    <MudTabPanel Text="Lehrer-Ergebnisse">
+        <MudButton Href="/admin/ergebnisse/export/lehrer"
+                   Variant="Variant.Outlined"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   Class="mb-4">
+            Als CSV exportieren
+        </MudButton>
+        <ResultList Categories="_teacherResults" />
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private IReadOnlyList<ResultCategoryDto>? _studentResults;
+    private IReadOnlyList<ResultCategoryDto>? _teacherResults;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _studentResults = await ResultService.GetStudentResultsAsync();
+        _teacherResults = await ResultService.GetTeacherResultsAsync();
+    }
+}

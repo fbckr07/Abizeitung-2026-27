@@ -1,0 +1,189 @@
+@using Frontend.Data.Entities
+@using Frontend.Data.Records
+@using Microsoft.EntityFrameworkCore
+@inject ISnackbar Snackbar
+
+<MudItem xs="12" md="6">
+    <MudCard Elevation="2" Class="h-100">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">@Category.QuestionText</MudText>
+                <MudText Typo="Typo.caption">
+                    @(Category.IsCrossGender
+                        ? "Wählbar: Schüler beider Geschlechter (zwei Personen)"
+                        : Category.Gender == Gender.Male
+                        ? $"Wählbar: männliche {GroupDesignation} (zwei Personen)"
+                        : $"Wählbar: weibliche {GroupDesignation} (zwei Personen)")
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudAutocomplete T="CandidateDto"
+                             Label="@($"1. {SelectionLabel}")"
+                             Value="_selection1"
+                             ValueChanged="OnSelection1ChangedAsync"
+                             SearchFunc="SearchCandidateAsync"
+                             ToStringFunc="CandidateDisplayName"
+                             ResetValueOnEmptyText="false"
+                             CoerceText="false"
+                             CoerceValue="false"
+                             Clearable="false"
+                             Variant="Variant.Outlined"
+                             Adornment="Adornment.Start"
+                             AdornmentIcon="@Icons.Material.Filled.PersonSearch"
+                             Class="mb-4" />
+            <MudAutocomplete T="CandidateDto"
+                             Label="@($"2. {SelectionLabel}")"
+                             Value="_selection2"
+                             ValueChanged="OnSelection2ChangedAsync"
+                             SearchFunc="SearchCandidateAsync"
+                             ToStringFunc="CandidateDisplayName"
+                             ResetValueOnEmptyText="false"
+                             CoerceText="false"
+                             CoerceValue="false"
+                             Clearable="false"
+                             Variant="Variant.Outlined"
+                             Adornment="Adornment.Start"
+                             AdornmentIcon="@Icons.Material.Filled.PersonSearch" />
+        </MudCardContent>
+        <MudCardActions>
+            @if (_saved)
+            {
+                <MudChip T="string"
+                         Color="Color.Success"
+                         Variant="Variant.Text"
+                         Icon="@Icons.Material.Filled.CheckCircle">
+                    Gespeichert
+                </MudChip>
+            }
+            @if (_error)
+            {
+                <MudChip T="string"
+                         Color="Color.Error"
+                         Variant="Variant.Text"
+                         Icon="@Icons.Material.Filled.Error">
+                    Fehler
+                </MudChip>
+            }
+        </MudCardActions>
+    </MudCard>
+</MudItem>
+
+@code {
+    [Parameter, EditorRequired]
+    public required CategoryWithSelectionDto<Student> Category { get; set; }
+    
+    [Parameter, EditorRequired]
+    public Guid VoterId { get; set; }
+    
+    [Parameter, EditorRequired]
+    public required Func<Guid, CancellationToken, Task<IReadOnlyList<CandidateDto>>> CandidatesLoading { get; set; }
+    
+    [Parameter, EditorRequired]
+    public required Func<Guid, Guid, Guid, Task> SaveVote { get; set; }
+    
+    [Parameter]
+    public string GroupDesignation { get; set; } = "Personen";
+    
+    [Parameter]
+    public string SelectionLabel { get; set; } = "Auswählen";
+
+    private CandidateDto? _selection1;
+    private CandidateDto? _selection2;
+    private List<CandidateDto>? _candidates;
+    private bool _saved;
+    private bool _error;
+
+    protected override void OnParametersSet()
+    {
+        if (Category.PreviousSelection is not null && Category.PreviousSelection2 is not null && _selection1 is null)
+        {
+            var erste = new CandidateDto(Category.PreviousSelection.Id, Category.PreviousSelection.Name, Category.PreviousSelection.Course);
+            var zweite = new CandidateDto(Category.PreviousSelection2.Id, Category.PreviousSelection2.Name, Category.PreviousSelection2.Course);
+
+            _selection1 = erste;
+            _selection2 = zweite;
+            _candidates = [erste, zweite];
+            _saved = true;
+        }
+    }
+
+    private async Task<IEnumerable<CandidateDto>> SearchCandidateAsync(string? suche, CancellationToken cancellationToken)
+    {
+        _candidates ??= (await CandidatesLoading(Category.CategoryId, cancellationToken)).ToList();
+
+        if (string.IsNullOrWhiteSpace(suche))
+        {
+            return _candidates;
+        }
+
+        return _candidates.Where(k => k.Name.Contains(suche, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private Task OnSelection1ChangedAsync(CandidateDto? ausgewaehlt) => OnSelectionChangedAsync(ausgewaehlt, isFirstSelection: true);
+
+    private Task OnSelection2ChangedAsync(CandidateDto? ausgewaehlt) => OnSelectionChangedAsync(ausgewaehlt, isFirstSelection: false);
+
+    private async Task OnSelectionChangedAsync(CandidateDto? selected, bool isFirstSelection)
+    {
+        if (selected is null)
+        {
+            return;
+        }
+
+        var vorher1 = _selection1;
+        var vorher2 = _selection2;
+
+        if (isFirstSelection)
+        {
+            _selection1 = selected;
+        }
+        else
+        {
+            _selection2 = selected;
+        }
+
+        _error = false;
+
+        if (_selection1 is null || _selection2 is null)
+        {
+            return;
+        }
+
+        if (_selection1.Id == _selection2.Id)
+        {
+            _selection1 = vorher1;
+            _selection2 = vorher2;
+            _error = true;
+            Snackbar.Add("Bitte zwei unterschiedliche Personen auswählen.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            await SaveVote(Category.CategoryId, _selection1.Id, _selection2.Id);
+            _saved = true;
+            Snackbar.Add($"Duo für \"{Shorttext()}\" gespeichert.", Severity.Success);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException)
+        {
+            // Rollback der UI-Auswahl
+            _selection1 = vorher1;
+            _selection2 = vorher2;
+            _saved = vorher1 is not null && vorher2 is not null;
+            _error = true;
+            Snackbar.Add($"Duo konnte nicht gespeichert werden: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private string Shorttext()
+    {
+        var frage = Category.QuestionText;
+        return frage.Length > 40 ? frage[..40] + "…" : frage;
+    }
+
+    private static string CandidateDisplayName(CandidateDto? candidate) =>
+        candidate is null || string.IsNullOrWhiteSpace(candidate.Course)
+            ? candidate?.Name ?? string.Empty
+            : $"{candidate.Name} ({candidate.Course})";
+}

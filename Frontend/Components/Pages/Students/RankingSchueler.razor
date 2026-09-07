@@ -1,0 +1,88 @@
+@page "/ranking/schueler"
+@attribute [Authorize(Policy = Permissions.RankingSchueler)]
+@using System.Security.Claims
+@using Frontend.Data.Records
+@inject IVotingStudentService VotingService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Ranking – Schüler</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Ranking – Schüler</MudText>
+
+@if (_categories is null)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else if (_categories.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">Aktuell sind keine aktiven Kategorien vorhanden.</MudAlert>
+}
+else
+{
+    <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true">
+        <MudTabPanel Text="Solo">
+            @if (_soloCategories.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info" Class="mt-4">Aktuell sind keine aktiven Solo-Kategorien vorhanden.</MudAlert>
+            }
+            else
+            {
+                <MudGrid Class="mt-1">
+                    @foreach (var kategorie in _soloCategories)
+                    {
+                        <VotingCategoryCard TKandidat="Student"
+                                              Category="kategorie"
+                                              VoterId="_studentId"
+                                              CandidateLoading="(id, ct) => VotingService.GetCandidatesForCategoryAsync(id, _studentId, ct)"
+                                              SaveVote="(kategorieId, kandidatenId) => VotingService.UpsertVoteAsync(kategorieId, _studentId, kandidatenId)"
+                                              GroupDescription="Schüler"
+                                              SelectionLabel="Schüler auswählen" />
+                    }
+                </MudGrid>
+            }
+        </MudTabPanel>
+        <MudTabPanel Text="Duo">
+            @if (_duoCategories.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info" Class="mt-4">Aktuell sind keine aktiven Duo-Kategorien vorhanden.</MudAlert>
+            }
+            else
+            {
+                <MudGrid Class="mt-1">
+                    @foreach (var kategorie in _duoCategories)
+                    {
+                        <DuoVotingCategoryCard Category="kategorie"
+                                                  VoterId="_studentId"
+                                                  CandidatesLoading="(id, ct) => VotingService.GetCandidatesForCategoryAsync(id, _studentId, ct)"
+                                                  SaveVote="(kategorieId, k1, k2) => VotingService.UpsertDuoVoteAsync(kategorieId, _studentId, k1, k2)"
+                                                  GroupDesignation="Schüler"
+                                                  SelectionLabel="Schüler auswählen" />
+                    }
+                </MudGrid>
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    private IReadOnlyList<CategoryWithSelectionDto<Student>>? _categories;
+    private List<CategoryWithSelectionDto<Student>> _soloCategories = [];
+    private List<CategoryWithSelectionDto<Student>> _duoCategories = [];
+    private Guid _studentId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!Guid.TryParse(idClaim, out _studentId))
+        {
+            _categories = [];
+            return;
+        }
+
+        _categories = await VotingService.GetCategoriesWithOwnSelectionAsync(_studentId);
+        _soloCategories = _categories.Where(k => !k.IsDuo).ToList();
+        _duoCategories = _categories.Where(k => k.IsDuo).ToList();
+    }
+}

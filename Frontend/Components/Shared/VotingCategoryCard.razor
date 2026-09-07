@@ -1,0 +1,145 @@
+@using Frontend.Data.Entities
+@using Frontend.Data.Records
+@using Microsoft.EntityFrameworkCore
+@typeparam TKandidat where TKandidat : class, ICandidate
+@inject ISnackbar Snackbar
+
+<MudItem xs="12" md="6">
+    <MudCard Elevation="2" Class="h-100">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">@Category.QuestionText</MudText>
+                <MudText Typo="Typo.caption">
+                    @(Category.Gender == Gender.Male
+                        ? $"Wählbar: männliche {GroupDescription}"
+                        : $"Wählbar: weibliche {GroupDescription}")
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudAutocomplete T="CandidateDto"
+                             Label="@SelectionLabel"
+                             Value="_selection"
+                             ValueChanged="OnSelectionChangedAsync"
+                             SearchFunc="SearchCandidatesAsync"
+                             ToStringFunc="CandidateDisplayName"
+                             ResetValueOnEmptyText="false"
+                             CoerceText="false"
+                             CoerceValue="false"
+                             Clearable="false"
+                             Variant="Variant.Outlined"
+                             Adornment="Adornment.Start"
+                             AdornmentIcon="@Icons.Material.Filled.PersonSearch" />
+        </MudCardContent>
+        <MudCardActions>
+            @if (_saved)
+            {
+                <MudChip T="string"
+                         Color="Color.Success"
+                         Variant="Variant.Text"
+                         Icon="@Icons.Material.Filled.CheckCircle">
+                    Gespeichert
+                </MudChip>
+            }
+            @if (_error)
+            {
+                <MudChip T="string"
+                         Color="Color.Error"
+                         Variant="Variant.Text"
+                         Icon="@Icons.Material.Filled.Error">
+                    Fehler
+                </MudChip>
+            }
+        </MudCardActions>
+    </MudCard>
+</MudItem>
+
+@code {
+    [Parameter, EditorRequired]
+    public required CategoryWithSelectionDto<TKandidat> Category { get; set; }
+    
+    [Parameter, EditorRequired]
+    public Guid VoterId { get; set; }
+    
+    [Parameter, EditorRequired]
+    public required Func<Guid, CancellationToken, Task<IReadOnlyList<CandidateDto>>> CandidateLoading { get; set; }
+    
+    [Parameter, EditorRequired]
+    public required Func<Guid, Guid, Task> SaveVote { get; set; }
+    
+    [Parameter]
+    public string GroupDescription { get; set; } = "Personen";
+    
+    [Parameter]
+    public string SelectionLabel { get; set; } = "Auswählen";
+
+    private CandidateDto? _selection;
+    private List<CandidateDto>? _candidates;
+    private bool _saved;
+    private bool _error;
+
+    protected override void OnParametersSet()
+    {
+        if (Category.PreviousSelection is not null && _selection is null)
+        {
+            var previous = new CandidateDto(
+                Category.PreviousSelection.Id,
+                Category.PreviousSelection.Name,
+                (Category.PreviousSelection as Student)?.Course);
+
+            _selection = previous;
+            _candidates = [previous];
+            _saved = true;
+        }
+    }
+
+    private async Task<IEnumerable<CandidateDto>> SearchCandidatesAsync(string? search, CancellationToken cancellationToken)
+    {
+        _candidates ??= (await CandidateLoading(Category.CategoryId, cancellationToken)).ToList();
+
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return _candidates;
+        }
+
+        return _candidates.Where(k => k.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task OnSelectionChangedAsync(CandidateDto? selected)
+    {
+        if (selected is null)
+        {
+            return;
+        }
+
+        var previousSelection = _selection;
+        _selection = selected;
+        _error = false;
+
+        try
+        {
+            await SaveVote(Category.CategoryId, selected.Id);
+            _saved = true;
+            Snackbar.Add($"Stimme für \"{Shorttext()}\" gespeichert.", Severity.Success);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException)
+        {
+            // Rollback der UI-Auswahl
+            _selection = previousSelection;
+            _saved = previousSelection is not null;
+            _error = true;
+            Snackbar.Add($"Stimme konnte nicht gespeichert werden: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private string Shorttext()
+    {
+        var frage = Category.QuestionText;
+        return frage.Length > 40 ? frage[..40] + "…" : frage;
+    }
+
+    private static string CandidateDisplayName(CandidateDto? candidate) =>
+        candidate is null || string.IsNullOrWhiteSpace(candidate.Course)
+            ? candidate?.Name ?? string.Empty
+            : $"{candidate.Name} ({candidate.Course})";
+}

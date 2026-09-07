@@ -1,0 +1,29 @@
+@page "/admin/verbesserungen"
+@layout AdminLayout
+@inject IFeedbackService FeedbackService
+
+<PageTitle>Admin - Verbesserungen</PageTitle>
+
+<MudText Typo="Typo.h4">Verbesserungen</MudText>
+
+<MudGrid>
+    @foreach (var f in feedbacks)
+    {
+        <FeedbackCard Feedback="f"/>
+    }
+</MudGrid>
+
+@code {
+    private IReadOnlyList<Feedback> feedbacks = Array.Empty<Feedback>();
+
+    private async Task LoadFeedback()
+    {
+        feedbacks = await FeedbackService.GetAllAsync();
+        feedbacks = feedbacks.OrderBy(f => f.CreatedAt).ToList();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFeedback();
+    }
+}

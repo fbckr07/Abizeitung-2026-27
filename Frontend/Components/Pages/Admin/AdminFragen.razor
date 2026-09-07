@@ -1,0 +1,24 @@
+@page "/admin/fragen"
+@attribute [Authorize(Roles = "Admin")]
+@layout AdminLayout
+@inject IRankingService RankingService
+
+<PageTitle>Fragen</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Fragen</MudText>
+
+<MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true">
+    <MudTabPanel Text="Schüler-Fragen">
+        <QuestionPairAdministration Load="() => RankingService.GetStudentQuestionsAsync()"
+                               Create="(m, w, duo, beideGeschlechter) => RankingService.CreateStudentQuestionPairAsync(m, w, duo, beideGeschlechter)"
+                               Refresh="(id, m, w, aktiv, bis) => RankingService.UpdateStudentQuestionPairAsync(id, m, w, aktiv, bis)"
+                               Delete="id => RankingService.DeleteStudentQuestionPairAsync(id)"
+                               SupportsDuo="true" />
+    </MudTabPanel>
+    <MudTabPanel Text="Lehrer-Fragen">
+        <QuestionPairAdministration Load="() => RankingService.GetTeacherQuestionsAsync()"
+                               Create="(m, w, duo, beideGeschlechter) => RankingService.CreateTeacherQuestionPairAsync(m, w)"
+                               Refresh="(id, m, w, aktiv, bis) => RankingService.UpdateTeacherQuestionPairAsync(id, m, w, aktiv, bis)"
+                               Delete="id => RankingService.DeleteTeacherQuestionPairAsync(id)" />
+    </MudTabPanel>
+</MudTabs>

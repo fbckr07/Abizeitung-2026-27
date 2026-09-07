@@ -1,0 +1,227 @@
+@using Frontend.Data.DTOs
+@inject ISnackbar Snackbar
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mb-4" OnClick="BeginCreate">
+    Neues Fragen-Paar
+</MudButton>
+
+@if (_new is not null)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudGrid>
+            <MudItem xs="12" sm="@(SupportsDuo && _new.IsCrossGender ? 12 : 6)">
+                <MudTextField @bind-Value="_new.TextMale"
+                              Label="@(SupportsDuo && _new.IsCrossGender ? "Fragetext" : "Text männlich")"
+                              Required="true" />
+            </MudItem>
+            @if (!SupportsDuo || !_new.IsCrossGender)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_new.TextFemale" Label="Text weiblich" Required="true" />
+                </MudItem>
+            }
+            @if (SupportsDuo)
+            {
+                <MudItem xs="12">
+                    <MudSwitch @bind-Value="_new.IsDuo" Color="Color.Primary" Label="Duo-Frage (zwei Personen gleichen Geschlechts)" />
+                </MudItem>
+                @if (_new.IsDuo)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="_new.IsCrossGender"
+                                   Color="Color.Primary"
+                                   Label="Eine gemeinsame Frage für beide Geschlechter" />
+                    </MudItem>
+                }
+            }
+        </MudGrid>
+        <MudStack Row="true" Class="mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveNewAsync">Speichern</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => _new = null)">Abbrechen</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+@if (_pairs is null)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else if (_pairs.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">Noch keine Fragen vorhanden.</MudAlert>
+}
+else
+{
+    @foreach (var paar in _pairs)
+    {
+        <MudCard Class="mb-3">
+            <MudCardContent>
+                @if (_editing is not null && _editing.QuestionGroupId == paar.QuestionGroupId)
+                {
+                    <MudGrid>
+                        <MudItem xs="12" sm="@(_editing.IsCrossGender ? 12 : 6)">
+                            <MudTextField @bind-Value="_editing.TextMale"
+                                          Label="@(_editing.IsCrossGender ? "Fragetext" : "Text männlich")" />
+                        </MudItem>
+                        @if (!_editing.IsCrossGender)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="_editing.TextFemale" Label="Text weiblich" />
+                            </MudItem>
+                        }
+                        <MudItem xs="12" sm="6">
+                            <MudSwitch @bind-Value="_editing.IsActive" Color="Color.Primary" Label="Aktiv (gilt für beide Varianten)" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker @bind-Date="_editing.ActiveUntil" Label="Aktiv bis (gilt für beide Varianten)" />
+                        </MudItem>
+                    </MudGrid>
+                    <MudStack Row="true" Class="mt-2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveEditingAsync">Speichern</MudButton>
+                        <MudButton Variant="Variant.Text" OnClick="@(() => _editing = null)">Abbrechen</MudButton>
+                    </MudStack>
+                }
+                else
+                {
+                    <MudGrid>
+                        <MudItem xs="12" sm="5">
+                            <MudText Typo="Typo.body1"><b>Männlich:</b> @paar.TextMale</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="5">
+                            @if (!paar.IsCrossGender)
+                            {
+                                <MudText Typo="Typo.body1"><b>Weiblich:</b> @paar.TextFemale</MudText>
+                            }
+                        </MudItem>
+                        <MudItem xs="12" sm="2">
+                            <MudChip T="string" Color="@(paar.IsActive ? Color.Success : Color.Default)" Size="Size.Small">
+                                @(paar.IsActive ? "Aktiv" : "Inaktiv")
+                            </MudChip>
+                            @if (paar.IsDuo)
+                            {
+                                <MudChip T="string" Color="Color.Info" Size="Size.Small">Duo</MudChip>
+                            }
+                        </MudItem>
+                    </MudGrid>
+                    <MudStack Row="true" Class="mt-2">
+                        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Edit" OnClick="@(() => BeginEdit(paar))">
+                            Bearbeiten
+                        </MudButton>
+                        <MudButton Variant="Variant.Text"
+                                   Color="Color.Error"
+                                   StartIcon="@Icons.Material.Filled.Delete"
+                                   Disabled="paar.HasVotes"
+                                   OnClick="@(() => DeleteAsync(paar))">
+                            Löschen
+                        </MudButton>
+                    </MudStack>
+                }
+            </MudCardContent>
+        </MudCard>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public Func<Task<IReadOnlyList<QuestionPairDto>>> Load { get; set; } = null!;
+    [Parameter, EditorRequired] public Func<string, string, bool, bool, Task> Create { get; set; } = null!;
+    [Parameter, EditorRequired] public Func<Guid, string, string, bool, DateTime?, Task> Refresh { get; set; } = null!;
+    [Parameter, EditorRequired] public Func<Guid, Task> Delete { get; set; } = null!;
+    
+    [Parameter] public bool SupportsDuo { get; set; }
+
+    private IReadOnlyList<QuestionPairDto>? _pairs;
+    private NewModel? _new;
+    private EditingModel? _editing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _pairs = await Load();
+    }
+
+    private void BeginCreate() => _new = new NewModel();
+
+    private void BeginEdit(QuestionPairDto pair)
+    {
+        _editing = new EditingModel
+        {
+            QuestionGroupId = pair.QuestionGroupId,
+            TextMale = pair.TextMale,
+            TextFemale = pair.TextFemale,
+            IsCrossGender = pair.IsCrossGender,
+            IsActive = pair.IsActive,
+            ActiveUntil = pair.ActiveUntil
+        };
+    }
+
+    private async Task SaveNewAsync()
+    {
+        var isCrossGender = _new?.IsDuo == true && _new.IsCrossGender;
+
+        if (_new is null || string.IsNullOrWhiteSpace(_new.TextMale) || (!isCrossGender && string.IsNullOrWhiteSpace(_new.TextFemale)))
+        {
+            Snackbar.Add(isCrossGender
+                ? "Bitte den Fragetext ausfüllen."
+                : "Bitte beide Textvarianten ausfüllen.", Severity.Warning);
+            return;
+        }
+
+        await Create(_new.TextMale, _new.TextFemale, _new.IsDuo, isCrossGender);
+        _new = null;
+        await LoadAsync();
+    }
+
+    private async Task SaveEditingAsync()
+    {
+        if (_editing is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Refresh(_editing.QuestionGroupId, _editing.TextMale, _editing.TextFemale, _editing.IsActive, _editing.ActiveUntil);
+            _editing = null;
+            await LoadAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync(QuestionPairDto paar)
+    {
+        try
+        {
+            await Delete(paar.QuestionGroupId);
+            await LoadAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private sealed class NewModel
+    {
+        public string TextMale { get; set; } = string.Empty;
+        public string TextFemale { get; set; } = string.Empty;
+        public bool IsDuo { get; set; }
+        public bool IsCrossGender { get; set; }
+    }
+
+    private sealed class EditingModel
+    {
+        public Guid QuestionGroupId { get; set; }
+        public string TextMale { get; set; } = string.Empty;
+        public string TextFemale { get; set; } = string.Empty;
+        public bool IsCrossGender { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime? ActiveUntil { get; set; }
+    }
+}

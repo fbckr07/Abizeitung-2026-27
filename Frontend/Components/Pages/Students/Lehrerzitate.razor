@@ -1,0 +1,156 @@
+@page "/lehrerzitate"
+@attribute [Authorize(Policy = Permissions.Lehrerzitate)]
+@using System.Security.Claims
+@using Frontend.Data.Records
+@inject ITeacherQuoteService TeacherQuoteService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Lehrerzitate</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Lehrerzitate</MudText>
+
+<MudPaper Class="pa-4 mb-6" Elevation="2">
+    <MudText Typo="Typo.h6" GutterBottom="true">Zitat einreichen</MudText>
+
+    @if (_sentSuccessful)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-4">zitat wird geprüft.</MudAlert>
+    }
+
+    <MudForm @ref="_form" Model="_model">
+        <MudAutocomplete T="CandidateDto" Label="Lehrer" @bind-Value="_selectedTeacher"
+                          SearchFunc="SearchTeacherAsync" ToStringFunc="@(l => l?.Name)"
+                          Required="true" RequiredError="Lehrer auswählen."
+                          Class="mb-4" />
+
+        <MudTextField @bind-Value="_model.Quote" Label="Zitat" Lines="3" MaxLength="500"
+                      Counter="500" Required="true" RequiredError="Zitat eingeben."
+                      Class="mb-4" />
+
+        <MudTextField @bind-Value="_model.Context" Label="Kontext (optional)" Class="mb-4" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="_sending">
+            Einreichen
+        </MudButton>
+    </MudForm>
+</MudPaper>
+
+<MudText Typo="Typo.h6" GutterBottom="true">Alle freigegebenen Zitate</MudText>
+
+<MudTable T="TeacherQuoteDto" ServerData="ServerReloadAsync" @ref="_table" Hover="false" Elevation="0"
+          GroupBy="_groups" GroupHeaderStyle="background-color:var(--mud-palette-background-gray)">
+    <ColGroup>
+        <col />
+    </ColGroup>
+    <GroupHeaderTemplate>
+        <MudTh Class="pa-2">
+            <MudText Typo="Typo.subtitle1">@context.Key</MudText>
+        </MudTh>
+    </GroupHeaderTemplate>
+    <HeaderContent>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>
+            <MudCard Class="mb-2" Elevation="1">
+                <MudCardContent>
+                    <MudText Typo="Typo.body1">„@context.Quote"</MudText>
+                    @if (!string.IsNullOrWhiteSpace(context.Context))
+                    {
+                        <MudText Typo="Typo.body2" Class="mt-1" Color="Color.Secondary">@context.Context</MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>Noch keine freigegebenen Zitate vorhanden.</MudText>
+    </NoRecordsContent>
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+    </PagerContent>
+</MudTable>
+
+@code {
+    private MudForm _form = null!;
+    private MudTable<TeacherQuoteDto> _table = null!;
+    private CandidateDto? _selectedTeacher;
+    private readonly ZitatModel _model = new();
+    private bool _sending;
+    private bool _sentSuccessful;
+    private Guid _studentId;
+    private IReadOnlyList<CandidateDto> _teacherList = [];
+
+    private readonly TableGroupDefinition<TeacherQuoteDto> _groups = new()
+    {
+        GroupName = "Lehrer",
+        Indentation = false,
+        Expandable = false,
+        Selector = z => z.TeacherName
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        Guid.TryParse(idClaim, out _studentId);
+
+        _teacherList = await TeacherQuoteService.GetTeacherAsync();
+    }
+
+    private Task<IEnumerable<CandidateDto>> SearchTeacherAsync(string value, CancellationToken cancellationToken)
+    {
+        IEnumerable<CandidateDto> result = string.IsNullOrWhiteSpace(value)
+            ? _teacherList
+            : _teacherList.Where(l => l.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return Task.FromResult(result);
+    }
+
+    private async Task<TableData<TeacherQuoteDto>> ServerReloadAsync(TableState state, CancellationToken cancellationToken)
+    {
+        var page = await TeacherQuoteService.GetAcceptedQuotesAsync(state.Page, state.PageSize, cancellationToken);
+        return new TableData<TeacherQuoteDto> { TotalItems = page.TotalCount, Items = page.Quotes };
+    }
+
+    private async Task SubmitAsync()
+    {
+        _sentSuccessful = false;
+        await _form.ValidateAsync();
+
+        if (!_form.IsValid || _selectedTeacher is null)
+        {
+            return;
+        }
+
+        _sending = true;
+        try
+        {
+            await TeacherQuoteService.SubmitAsync(
+                _selectedTeacher.Id,
+                _model.Quote,
+                _model.Context,
+                _studentId == Guid.Empty ? null : _studentId);
+
+            _sentSuccessful = true;
+            _selectedTeacher = null;
+            await _form.ResetAsync();
+            await _table.ReloadServerData();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+
+    private sealed class ZitatModel
+    {
+        public string Quote { get; set; } = string.Empty;
+        public string? Context { get; set; }
+    }
+}

@@ -1,0 +1,100 @@
+@page "/admin/admins"
+@using Frontend.Data.DTOs
+@attribute [Authorize(Roles = "Admin")]
+@layout AdminLayout
+@inject IAdminUserService AdminUserService
+@inject ISnackbar Snackbar
+
+<PageTitle>Admins</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Admins</MudText>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudText Typo="Typo.h6" GutterBottom="true">Neuen Admin erstellen</MudText>
+    <MudGrid>
+        <MudItem xs="12" sm="5">
+            <MudTextField @bind-Value="_newUsername"
+                          Label="Benutzername"
+                          Required="true"
+                          Immediate="true"
+                          MaxLength="100"
+                          Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="5">
+            <MudTextField @bind-Value="_newPassword"
+                          Label="Passwort"
+                          Required="true"
+                          Immediate="true"
+                          MaxLength="200"
+                          InputType="InputType.Password"
+                          Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" sm="2" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Disabled="_saved"
+                       StartIcon="@Icons.Material.Filled.PersonAdd"
+                       OnClick="CreateAdminAsync">
+                Erstellen
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+        Das Passwort muss mindestens 8 Zeichen enthalten.
+    </MudText>
+</MudPaper>
+
+<MudTable Items="_admins" Hover="true" Loading="_admins is null" Elevation="1">
+    <HeaderContent>
+        <MudTh>Benutzername</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Benutzername">@context.Username</MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText Class="pa-4">Keine Admins vorhanden.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private IReadOnlyList<AdminUserDto>? _admins;
+    private string _newUsername = string.Empty;
+    private string _newPassword = string.Empty;
+    private bool _saved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _admins = await AdminUserService.GetAllAsync();
+    }
+
+    private async Task CreateAdminAsync()
+    {
+        _saved = true;
+        try
+        {
+            await AdminUserService.CreateAsync(_newUsername, _newPassword);
+            _newUsername = string.Empty;
+            _newPassword = string.Empty;
+            await LoadAsync();
+            Snackbar.Add("Admin erfolgreich erstellt.", Severity.Success);
+        }
+        catch (ArgumentException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _saved = false;
+        }
+    }
+}

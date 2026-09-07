@@ -1,0 +1,428 @@
+﻿@page "/admin/schueler"
+@using System.Globalization
+@using System.Text
+@using Frontend.Data.DTOs
+@attribute [Authorize(Roles = "Admin")]
+@layout AdminLayout
+@inject IStudentManagementService StudentService
+@inject ISnackbar Snackbar
+
+<PageTitle>Schüler - Admin</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Schüler – Rechteverwaltung</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mb-4" OnClick="BeginCreate">
+    Neuer Schüler
+</MudButton>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudText Typo="Typo.h6">Recht für alle Schüler freischalten</MudText>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudSelect T="string" @bind-Value="_permissionForAll" Label="Recht auswählen" Dense="true" Style="min-width: 240px;">
+            @foreach (var (wert, anzeigename) in Permissions.Alle)
+            {
+                <MudSelectItem Value="wert">@anzeigename</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="string.IsNullOrEmpty(_permissionForAll)"
+                   StartIcon="@Icons.Material.Filled.LockOpen" OnClick="AddPermissionForAllAsync">
+            Freischalten
+        </MudButton>
+    </MudStack>
+</MudPaper>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudText Typo="Typo.h6">Schüler aus CSV importieren</MudText>
+    <MudText Typo="Typo.body2" Class="mb-3">
+        Erwartete Spalten: oldId, Vorname, Nachname, Kurs, Schuelernummer und LoginCode. Komma oder Semikolon werden unterstützt.
+    </MudText>
+    <InputFile OnChange="HandleCsvUpload" accept=".csv,text/csv" />
+</MudPaper>
+
+@if (_newStudent is not null)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudText Typo="Typo.h6" GutterBottom="true">Neuer Schüler</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_newStudent.Name" Label="Name" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_newStudent.Course" Label="Kurs" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="Gender" @bind-Value="_newStudent.Gender" Label="Geschlecht">
+                    <MudSelectItem Value="Gender.Male">Männlich</MudSelectItem>
+                    <MudSelectItem Value="Gender.Female">Weiblich</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+        <MudStack Row="true" Class="mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveNewAsync">Speichern</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => _newStudent = null)">Abbrechen</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+<MudTable Items="_student" Hover="true" Loading="_student is null">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Kurs</MudTh>
+        <MudTh>Login-Code</MudTh>
+        <MudTh>Geschlecht</MudTh>
+        <MudTh>Rechte</MudTh>
+        <MudTh>Aktionen</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        @if (_editingStudent is not null && _editingStudent.Id == context.Id)
+        {
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Kurs">@context.Course</MudTd>
+            <MudTd DataLabel="Login-Code">@context.LoginCode</MudTd>
+            <MudTd DataLabel="Geschlecht">
+                <MudSelect T="Gender" @bind-Value="_editingStudent.Gender" Dense="true">
+                    <MudSelectItem Value="Gender.Male">Männlich</MudSelectItem>
+                    <MudSelectItem Value="Gender.Female">Weiblich</MudSelectItem>
+                </MudSelect>
+            </MudTd>
+            <MudTd DataLabel="Rechte">
+                @foreach (var (wert, anzeigename) in Permissions.Alle)
+                {
+                    <MudCheckBox T="bool"
+                                 Value="_editingStudent.Permissions.Contains(wert)"
+                                 ValueChanged="@(checked_ => TogglePermission(wert, checked_))"
+                                 Label="@anzeigename"
+                                 Dense="true" />
+                }
+            </MudTd>
+            <MudTd DataLabel="Aktionen">
+                <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Primary" OnClick="SaveAsync" />
+                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editingStudent = null)" />
+            </MudTd>
+        }
+        else
+        {
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Kurs">@context.Course</MudTd>
+            <MudTd DataLabel="Login-Code">@context.LoginCode</MudTd>
+            <MudTd DataLabel="Geschlecht">@GenderDisplayName(context.Gender)</MudTd>
+            <MudTd DataLabel="Rechte">
+                @if (context.Permissions.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Keine</MudText>
+                }
+                else
+                {
+                    @foreach (var recht in context.Permissions)
+                    {
+                        <MudChip T="string" Size="Size.Small" Class="mr-1">@ToDisplayName(recht)</MudChip>
+                    }
+                }
+            </MudTd>
+            <MudTd DataLabel="Aktionen">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => BeginEdit(context))" />
+            </MudTd>
+        }
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private IReadOnlyList<StudentListItemDto>? _student;
+    private EditingModel? _editingStudent;
+    private NewStudentModel? _newStudent;
+    private string? _permissionForAll;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _student = await StudentService.GetAllAsync();
+        _student = _student.OrderBy(s => s.Course).ThenBy(s => s.Name).ToList();
+    }
+
+    private void BeginCreate()
+    {
+        _newStudent = new NewStudentModel();
+    }
+
+    private async Task SaveNewAsync()
+    {
+        if (_newStudent is null || string.IsNullOrWhiteSpace(_newStudent.Name))
+        {
+            Snackbar.Add("Bitte einen Namen angeben.", Severity.Warning);
+            return;
+        }
+
+        var student = await StudentService.CreateAsync(
+            _newStudent.Name,
+            _newStudent.Course,
+            _newStudent.Gender);
+        _newStudent = null;
+        await LoadAsync();
+        Snackbar.Add($"Schüler angelegt. Login-Code: {student.LoginCode}", Severity.Success);
+    }
+
+    private async Task AddPermissionForAllAsync()
+    {
+        if (string.IsNullOrEmpty(_permissionForAll))
+        {
+            return;
+        }
+
+        var displayName = Permissions.Alle.FirstOrDefault(item => item.Value == _permissionForAll).DisplayName
+            ?? _permissionForAll;
+
+        try
+        {
+            await StudentService.AddPermissionForAllAsync(_permissionForAll);
+            await LoadAsync();
+            Snackbar.Add($"{displayName} wurde für alle Schüler freigeschaltet.", Severity.Success);
+        }
+        catch (ArgumentException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void BeginEdit(StudentListItemDto student)
+    {
+        _editingStudent = new EditingModel
+        {
+            Id = student.Id,
+            Name = student.Name,
+            Course = student.Course,
+            LoginCode = student.LoginCode,
+            Gender = student.Gender,
+            Permissions = student.Permissions.ToList(),
+        };
+    }
+
+    private void TogglePermission(string permission, bool active)
+    {
+        if (_editingStudent is null)
+        {
+            return;
+        }
+
+        if (active && !_editingStudent.Permissions.Contains(permission))
+        {
+            _editingStudent.Permissions.Add(permission);
+        }
+        else if (!active)
+        {
+            _editingStudent.Permissions.Remove(permission);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editingStudent is null)
+        {
+            return;
+        }
+
+        await StudentService.SetPermissionAsync(_editingStudent.Id, _editingStudent.Permissions);
+        await StudentService.SetGenderAsync(_editingStudent.Id, _editingStudent.Gender);
+        await StudentService.SetCourseAsync(_editingStudent.Id, _editingStudent.Course);
+        _editingStudent = null;
+        await LoadAsync();
+        Snackbar.Add("Rechte gespeichert.", Severity.Success);
+    }
+
+    private static string ToDisplayName(string wert) =>
+        Permissions.Alle.FirstOrDefault(r => r.Value == wert).DisplayName ?? wert;
+
+    private static string GenderDisplayName(Gender gender) => gender switch
+    {
+        Gender.Female => "Weiblich",
+        _ => "Männlich",
+    };
+
+    private sealed class EditingModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Course { get; set; } = string.Empty;
+        public string LoginCode { get; set; } = string.Empty;
+        public Gender Gender { get; set; }
+        public List<string> Permissions { get; set; } = new();
+    }
+
+    private sealed class NewStudentModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Course { get; set; } = string.Empty;
+        public Gender Gender { get; set; }
+    }
+
+    private async Task HandleCsvUpload(InputFileChangeEventArgs args)
+{
+    var file = args.File;
+    if (file is null)
+    {
+        return;
+    }
+
+    try
+    {
+        using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var content = await reader.ReadToEndAsync();
+        var lines = content.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries);
+        if (lines.Length == 0)
+        {
+            Snackbar.Add("Die CSV-Datei ist leer.", Severity.Error);
+            return;
+        }
+
+        var delimiter = GetSeparator(lines[0]);
+
+        // Feste Spaltenreihenfolge: oldId, vorname, nachname, kurs, schuelernummer, logincode
+        const int oldIdIndex = 0;
+        const int vornameIndex = 1;
+        const int nachnameIndex = 2;
+        const int kursIndex = 3;
+        const int schuelernummerIndex = 4;
+        const int loginCodeIndex = 5;
+
+        var firstRow = ParseCsvLine(lines[0], delimiter);
+        var hasHeader = IsHeaderLine(firstRow);
+        var startIndex = hasHeader ? 1 : 0;
+
+        var imported = 0;
+        var skipped = 0;
+        var errors = new List<string>();
+        var loginCodesInFile = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (var i = startIndex; i < lines.Length; i++)
+        {
+            var rowNumber = i + 1;
+            var values = ParseCsvLine(lines[i], delimiter);
+
+            var vorname = vornameIndex < values.Length ? values[vornameIndex].Trim() : string.Empty;
+            var nachname = nachnameIndex < values.Length ? values[nachnameIndex].Trim() : string.Empty;
+
+            if (string.IsNullOrWhiteSpace(vorname) && string.IsNullOrWhiteSpace(nachname))
+            {
+                skipped++;
+                errors.Add($"Zeile {rowNumber}: Vorname und Nachname fehlen.");
+                continue;
+            }
+
+            var name = string.Join(" ", new[] { vorname, nachname }.Where(v => !string.IsNullOrWhiteSpace(v)));
+
+            var oldIdRaw = oldIdIndex < values.Length ? values[oldIdIndex].Trim() : string.Empty;
+            var oldId = string.IsNullOrWhiteSpace(oldIdRaw) ? null : oldIdRaw;
+
+            var kurs = kursIndex < values.Length ? values[kursIndex].Trim() : string.Empty;
+            var schuelernummer = schuelernummerIndex < values.Length ? values[schuelernummerIndex].Trim() : string.Empty;
+            var loginCode = loginCodeIndex < values.Length ? values[loginCodeIndex].Trim() : string.Empty;
+
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(loginCode) && !loginCodesInFile.Add(loginCode))
+                {
+                    skipped++;
+                    errors.Add($"Zeile {rowNumber}: Login-Code kommt in der Datei mehrfach vor.");
+                    continue;
+                }
+                
+                await StudentService.CreateAsync(
+                    new Student()
+                    {
+                        Name = name,
+                        LoginCode = loginCode,
+                        Course = kurs,
+                        OldId = int.Parse(oldId ?? "0"),
+                        CreatedAt = DateTime.UtcNow,
+                        Gender = Gender.Male,
+                        StudentNumber = int.Parse(schuelernummer ?? "0")
+                    });
+
+                imported++;
+            }
+            catch (ArgumentException ex)
+            {
+                skipped++;
+                errors.Add($"Zeile {rowNumber}: {ex.Message}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                skipped++;
+                errors.Add($"Zeile {rowNumber}: {ex.Message}");
+            }
+        }
+
+        await LoadAsync();
+        Snackbar.Add($"Import abgeschlossen: {imported} angelegt, {skipped} übersprungen.",
+            errors.Count == 0 ? Severity.Success : Severity.Warning);
+        foreach (var error in errors.Take(5))
+        {
+            Snackbar.Add(error, Severity.Warning);
+        }
+    }
+    catch (Exception ex)
+    {
+        Snackbar.Add($"CSV-Import fehlgeschlagen: {ex.Message}", Severity.Error);
+    }
+}
+
+private static char GetSeparator(string line) =>
+    line.Count(c => c == ';') > line.Count(c => c == ',') ? ';' : ',';
+
+private static bool IsHeaderLine(IReadOnlyList<string> row)
+{
+    // Header erkannt, wenn eine der bekannten Spaltenbezeichnungen in der ersten Zeile vorkommt.
+    string[] headerNamen =
+    {
+        "oldid", "old-id", "id",
+        "vorname", "firstname",
+        "nachname", "lastname",
+        "kurs", "klasse",
+        "schuelernummer", "schülernummer",
+        "logincode", "login-code", "code"
+    };
+
+    return row.Any(value => headerNamen.Contains(
+        value.Trim().Trim('\uFEFF'),
+        StringComparer.OrdinalIgnoreCase));
+}
+
+private static string[] ParseCsvLine(string line, char delimiter)
+{
+    var values = new List<string>();
+    var current = new StringBuilder();
+    bool inQuotes = false;
+
+    for (var i = 0; i < line.Length; i++)
+    {
+        var c = line[i];
+        if (c == '"')
+        {
+            if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+            {
+                current.Append('"');
+                i++; // skip escaped quote
+            }
+            else
+            {
+                inQuotes = !inQuotes;
+            }
+        }
+        else if (c == delimiter && !inQuotes)
+        {
+            values.Add(current.ToString());
+            current.Clear();
+        }
+        else
+        {
+            current.Append(c);
+        }
+    }
+    values.Add(current.ToString());
+    return values.ToArray();
+}
+}

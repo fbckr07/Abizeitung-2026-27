@@ -1,0 +1,57 @@
+﻿@inherits LayoutComponentBase
+@inject IDialogService DialogService
+
+<MudThemeProvider @ref="_themeProvider" DefaultScrollbar="false" Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+	<MudAppBar Color="Color.Primary" Elevation="1">
+		<MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
+		<MudText Typo="Typo.h6">Abizeitung</MudText>
+	</MudAppBar>
+
+	<MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive" Elevation="1">
+		<NavMenu />
+		<MudSpacer />
+		<AuthorizeView>
+			<MudButton Color="Color.Primary" OnClick="@(() => OpenFeedbackDialog(context.User.Identity?.Name ?? ""))">Ideen und Probleme</MudButton>
+		</AuthorizeView>
+	</MudDrawer>
+
+	<MudMainContent Class="pa-6 app-main-content">
+		@Body
+	</MudMainContent>
+</MudLayout>
+
+@code {
+	private bool _drawerOpen = true;
+	
+	private void ToggleDrawer()
+	{
+		_drawerOpen = !_drawerOpen;
+	}
+
+	private MudThemeProvider _themeProvider;
+	
+	private MudTheme _theme = new()
+	{
+		PaletteLight = new PaletteLight()
+		{
+			Primary = "#9C2031"
+		},
+		LayoutProperties = new LayoutProperties()
+		{
+			DefaultBorderRadius = "10"
+		}	
+	};
+
+	private async Task OpenFeedbackDialog(string name)
+	{
+		var dialog = await DialogService.ShowAsync<FeedbackDialog>("Feedback",
+			new DialogParameters { [nameof(FeedbackDialog.Name)] = name},
+			new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true });
+	}
+
+}

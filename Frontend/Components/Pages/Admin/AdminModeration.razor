@@ -1,0 +1,154 @@
+@page "/admin/moderation"
+@using Frontend.Data.DTOs
+@attribute [Authorize(Roles = "Admin")]
+@layout AdminLayout
+@inject IModerationService ModerationService
+@inject ISnackbar Snackbar
+
+<PageTitle>Moderation</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Moderation</MudText>
+
+<MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true">
+    <MudTabPanel Text="Steckbriefe">
+        @if (_profiles is null)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (_profiles.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">Keine offenen Steckbriefe.</MudAlert>
+        }
+        else
+        {
+            @foreach (var profil in _profiles)
+            {
+                <MudCard Class="mb-4">
+                    <MudCardContent>
+                        <MudGrid>
+                            <MudItem xs="12" sm="3">
+                                @if (!string.IsNullOrWhiteSpace(profil.PhotoUrl))
+                                {
+                                    <MudImage Src="@profil.PhotoUrl" Fluid="true" Class="rounded" />
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Large" />
+                                }
+                            </MudItem>
+                            <MudItem xs="12" sm="9">
+                                <MudText Typo="Typo.h6">@profil.StudentName</MudText>
+                                <MudText Typo="Typo.body2"><b>Motto:</b> @profil.Motto</MudText>
+                                <MudText Typo="Typo.body2"><b>Hobbys:</b> @profil.Hobbys</MudText>
+                                <MudText Typo="Typo.body2"><b>Zukunftswunsch:</b> @profil.Zukunftswunsch</MudText>
+
+                                <MudTextField T="string"
+                                              Value="@GetKommentar(profil.Id)"
+                                              ValueChanged="@(value => SetKommentar(profil.Id, value))"
+                                              Label="Feedback-Kommentar (optional, bei Ablehnung)"
+                                              Lines="2"
+                                              Class="mt-2" />
+
+                                <MudStack Row="true" Class="mt-2">
+                                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => FreigebenSteckbriefAsync(profil.Id))">
+                                        Freigeben
+                                    </MudButton>
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => AblehnenSteckbriefAsync(profil.Id))">
+                                        Ablehnen
+                                    </MudButton>
+                                </MudStack>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                </MudCard>
+            }
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Lehrerzitate">
+        @if (_quotes is null)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (_quotes.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">Keine offenen Lehrerzitate.</MudAlert>
+        }
+        else
+        {
+            @foreach (var zitat in _quotes)
+            {
+                <MudCard Class="mb-4">
+                    <MudCardContent>
+                        <MudText Typo="Typo.subtitle1">@zitat.TeacherName</MudText>
+                        <MudText Typo="Typo.body1">„@zitat.Quote"</MudText>
+                        @if (!string.IsNullOrWhiteSpace(zitat.Context))
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@zitat.Context</MudText>
+                        }
+                        <MudStack Row="true" Class="mt-2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => FreigebenZitatAsync(zitat.Id))">
+                                Freigeben
+                            </MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => AblehnenZitatAsync(zitat.Id))">
+                                Ablehnen
+                            </MudButton>
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            }
+        }
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private IReadOnlyList<OpenProfileDto>? _profiles;
+    private IReadOnlyList<OpenQuoteDto>? _quotes;
+    private readonly Dictionary<Guid, string> _comments = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _profiles = await ModerationService.GetOpenProfilesAsync();
+        _quotes = await ModerationService.GetOpenQuotesAsync();
+    }
+
+    private string GetKommentar(Guid profilId) => _comments.GetValueOrDefault(profilId, string.Empty);
+
+    private void SetKommentar(Guid profilId, string value) => _comments[profilId] = value;
+
+    private async Task FreigebenSteckbriefAsync(Guid id)
+    {
+        await ModerationService.AcceptProfileAsync(id);
+        _comments.Remove(id);
+        Snackbar.Add("Steckbrief freigegeben.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task AblehnenSteckbriefAsync(Guid id)
+    {
+        var comment = GetKommentar(id);
+        await ModerationService.RejectProfileAsync(id, comment);
+        _comments.Remove(id);
+        Snackbar.Add("Steckbrief abgelehnt, Feedback gespeichert.", Severity.Info);
+        await LoadAsync();
+    }
+
+    private async Task FreigebenZitatAsync(Guid id)
+    {
+        await ModerationService.AcceptQuoteAsync(id);
+        Snackbar.Add("Zitat freigegeben.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task AblehnenZitatAsync(Guid id)
+    {
+        await ModerationService.DenyQuoteAsync(id);
+        Snackbar.Add("Zitat abgelehnt.", Severity.Info);
+        await LoadAsync();
+    }
+}

@@ -1,0 +1,51 @@
+@inject IFeedbackService FeedbackService
+@inject ISnackbar Snackbar
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2">Hier kannst du neue Ideen oder Fehler einreichen</MudText>
+        <MudTextField @bind-Value="_text"
+                      Label="Dein Feedback"
+                      Lines="4"
+                      MaxLength="1024"
+                      Counter="1024"
+                      Immediate="true"
+                      Required="true"/>
+        
+        <MudRadioGroup @bind-SelectedOption="_type" T="FeedbackType">
+            <MudRadio T="FeedbackType" Option="FeedbackType.Bug">Bug</MudRadio>
+            <MudRadio T="FeedbackType" Option="FeedbackType.Idea">Idea</MudRadio>
+        </MudRadioGroup>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Error" OnClick="Close">Abbrechen</MudButton>
+        <MudButton Color="Color.Primary" Disabled="string.IsNullOrWhiteSpace(_text)" OnClick="Save">Senden</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code
+{
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public string Name { get; set; } = string.Empty;
+
+    private string _text = string.Empty;
+    private FeedbackType _type = FeedbackType.Bug;
+
+    private async Task Save()
+    {
+        try
+        {
+            var result = await FeedbackService.CreateAsync(_text, Name, _type);
+            Snackbar.Add("Feedback erfolgreich gesendet!", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch
+        {
+            Snackbar.Add("Fehler beim senden!", Severity.Error);
+        }
+    }
+
+    private void Close() => MudDialog.Cancel();
+}

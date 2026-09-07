@@ -1,0 +1,39 @@
+﻿services:
+  frontend:
+    image: frontend
+    build:
+      context: .
+      dockerfile: Frontend/Dockerfile
+    ports:
+      - "8098:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+    volumes:
+      - ./appsettings.json:/app/appsettings.json:ro
+      - aspnet_keys:/app/keys
+    depends_on:
+      - postgres
+      - adminer
+  
+  postgres:
+    image: postgres:latest
+    container_name: shop-postgres
+    environment:
+      POSTGRES_DB: abizeitung
+      POSTGRES_USER: dbuser
+      POSTGRES_PASSWORD: dbpasswd
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    
+  adminer:
+    image: dockette/adminer:full
+    environment:
+      ADMINER_PLUGIN_AUTOLOGIN: 1
+      ADMINER_AUTOLOGIN_SERVER: "pgsql://dbuser:dbpasswd@postgres:5432/abizeitung"
+
+volumes:
+  postgres_data:
+  aspnet_keys:

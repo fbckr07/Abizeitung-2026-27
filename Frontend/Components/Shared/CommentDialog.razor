@@ -1,0 +1,37 @@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Dein Kommentar an <b>@TargetName</b> wird erst nach der Bestätigung angezeigt.
+        </MudText>
+        <MudTextField @bind-Value="_text"
+                      Label="Kommentar"
+                      Lines="4"
+                      MaxLength="1024"
+                      Counter="1024"
+                      Immediate="true"
+                      Required="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Abbrechen">Abbrechen</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="string.IsNullOrWhiteSpace(_text)"
+                   OnClick="Speichern">
+            Speichern
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public string TargetName { get; set; } = string.Empty;
+
+    private string _text = string.Empty;
+
+    private void Abbrechen() => MudDialog.Cancel();
+
+    private void Speichern() => MudDialog.Close(DialogResult.Ok(_text.Trim()));
+}

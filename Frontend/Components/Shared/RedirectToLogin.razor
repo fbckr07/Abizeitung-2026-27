@@ -1,0 +1,27 @@
+@inject NavigationManager Navigation
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    protected override void OnInitialized()
+    {
+        var returnUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+        if (string.IsNullOrEmpty(returnUrl))
+        {
+            returnUrl = "/";
+        }
+
+        var target = "/login?returnUrl=" + Uri.EscapeDataString("/" + returnUrl.TrimStart('/'));
+
+        if (HttpContext is not null)
+        {
+            // SSR: harter Redirect (Setzt 302 sauber vor dem Streaming)
+            HttpContext.Response.Redirect(target);
+        }
+        else
+        {
+            Navigation.NavigateTo(target, forceLoad: true);
+        }
+    }
+}
