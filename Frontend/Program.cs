@@ -103,10 +103,6 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-// TODO: Funktioniert nicht, muss ich verbessern
-builder.Services.AddReverseProxy()
-    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
-
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
@@ -127,7 +123,6 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapReverseProxy();
 
 app.UseAntiforgery();
 

@@ -5,7 +5,7 @@
       context: .
       dockerfile: Frontend/Dockerfile
     ports:
-      - "8098:8080"
+      - "10001:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
@@ -24,15 +24,9 @@
       POSTGRES_USER: dbuser
       POSTGRES_PASSWORD: dbpasswd
     ports:
-      - "5436:5432"
+      - "5437:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-    
-  adminer:
-    image: dockette/adminer:full
-    environment:
-      ADMINER_PLUGIN_AUTOLOGIN: 1
-      ADMINER_AUTOLOGIN_SERVER: "pgsql://dbuser:dbpasswd@postgres:5432/abizeitung"
 
 volumes:
   postgres_data:
