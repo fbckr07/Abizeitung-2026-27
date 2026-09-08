@@ -3,7 +3,6 @@ using Frontend.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 
 namespace Frontend.Controllers;
 
@@ -12,14 +11,20 @@ namespace Frontend.Controllers;
 public sealed class AuthController(IAuthService authService) : ControllerBase
 {
     [HttpPost("login")]
-    [EnableRateLimiting(AuthRateLimiting.LoginPolicy)]
     public async Task<IActionResult> Login([FromForm] string code, [FromForm] string? returnUrl = null)
     {
+        if (AuthRateLimiting.HasLockoutCookie(HttpContext))
+        {
+            return Redirect(AuthRateLimiting.BuildLoginRedirect(HttpContext, "/login", returnUrl, "locked"));
+        }
+
         var student = await authService.ValidateCodeAsync(code, HttpContext.RequestAborted);
 
         if (student is null)
         {
-            return Redirect(AuthRateLimiting.BuildLoginRedirect(HttpContext, "/login", returnUrl, "invalid"));
+            var locked = AuthRateLimiting.RegisterFailedAttempt(HttpContext);
+            return Redirect(AuthRateLimiting.BuildLoginRedirect(
+                HttpContext, "/login", returnUrl, locked ? "locked" : "invalid"));
         }
 
         var claims = new List<Claim>
@@ -48,6 +53,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
                 AllowRefresh = true
             });
 
+        AuthRateLimiting.ClearFailedAttempts(HttpContext);
         AuthRateLimiting.ClearRedirectCookie(HttpContext);
         return Redirect(AuthRateLimiting.SanitizeReturnUrl(returnUrl) ?? "/home");
     }

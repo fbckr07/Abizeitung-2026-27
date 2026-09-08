@@ -1,17 +1,16 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Threading.RateLimiting;
 
 namespace Frontend.Services;
 
 public static class AuthRateLimiting
 {
-    public const string LoginPolicy = "login";
     public const string StatusCookie = "login_lockout";
+    public const string FailedAttemptsCookie = "login_failed_attempts";
     public const string RedirectCookie = "login_redirect";
 
-    public const string AdminLoginPolicy = "admin-login";
     public const string AdminStatusCookie = "admin_login_lockout";
+    public const string AdminFailedAttemptsCookie = "admin_login_failed_attempts";
     public const string AdminRedirectCookie = "admin_login_redirect";
 
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(10);
@@ -20,20 +19,6 @@ public static class AuthRateLimiting
     public static readonly TimeSpan RedirectLifetime = TimeSpan.FromMinutes(5);
 
     public sealed record LoginRedirectState(string? ReturnUrl, string? Error);
-
-    public static RateLimitPartition<string> PartitionByIp(HttpContext context)
-    {
-        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-
-        return RateLimitPartition.GetSlidingWindowLimiter(ip, _ => new SlidingWindowRateLimiterOptions
-        {
-            PermitLimit = PermitLimit,
-            Window = Window,
-            SegmentsPerWindow = 10,
-            QueueLimit = 0,
-            AutoReplenishment = true
-        });
-    }
 
     public static string? SanitizeReturnUrl(string? returnUrl)
     {
@@ -101,12 +86,7 @@ public static class AuthRateLimiting
 
     public static void SetLockoutCookie(HttpContext context)
     {
-        context.Response.Cookies.Append(StatusCookie, "1", new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            Expires = DateTimeOffset.UtcNow.Add(Lockout)
-        });
+        SetLockoutCookie(context, StatusCookie);
     }
 
     public static bool HasLockoutCookie(HttpContext context)
@@ -116,17 +96,61 @@ public static class AuthRateLimiting
 
     public static void SetAdminLockoutCookie(HttpContext context)
     {
-        context.Response.Cookies.Append(AdminStatusCookie, "1", new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            Expires = DateTimeOffset.UtcNow.Add(Lockout)
-        });
+        SetLockoutCookie(context, AdminStatusCookie);
     }
 
     public static bool HasAdminLockoutCookie(HttpContext context)
     {
         return context.Request.Cookies.ContainsKey(AdminStatusCookie);
+    }
+
+    public static bool RegisterFailedAttempt(HttpContext context, bool isAdmin = false)
+    {
+        var attemptsCookie = isAdmin ? AdminFailedAttemptsCookie : FailedAttemptsCookie;
+        var attempts = int.TryParse(context.Request.Cookies[attemptsCookie], out var value) ? value : 0;
+        attempts++;
+
+        if (attempts >= PermitLimit)
+        {
+            if (isAdmin)
+            {
+                SetAdminLockoutCookie(context);
+            }
+            else
+            {
+                SetLockoutCookie(context);
+            }
+
+            context.Response.Cookies.Delete(attemptsCookie);
+            return true;
+        }
+
+        context.Response.Cookies.Append(attemptsCookie, attempts.ToString(CultureInfo.InvariantCulture), new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            MaxAge = Window,
+            Expires = DateTimeOffset.UtcNow.Add(Window)
+        });
+
+        return false;
+    }
+
+    public static void ClearFailedAttempts(HttpContext context, bool isAdmin = false)
+    {
+        context.Response.Cookies.Delete(isAdmin ? AdminFailedAttemptsCookie : FailedAttemptsCookie);
+        context.Response.Cookies.Delete(isAdmin ? AdminStatusCookie : StatusCookie);
+    }
+
+    private static void SetLockoutCookie(HttpContext context, string cookieName)
+    {
+        context.Response.Cookies.Append(cookieName, "1", new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            MaxAge = Lockout,
+            Expires = DateTimeOffset.UtcNow.Add(Lockout)
+        });
     }
 
     public static string FormatDuration(TimeSpan duration)

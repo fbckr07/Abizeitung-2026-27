@@ -97,33 +97,6 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddCascadingAuthenticationState();
 
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy(AuthRateLimiting.LoginPolicy, AuthRateLimiting.PartitionByIp);
-    options.AddPolicy(AuthRateLimiting.AdminLoginPolicy, AuthRateLimiting.PartitionByIp);
-    options.OnRejected = (context, cancellationToken) =>
-    {
-        var httpContext = context.HttpContext;
-        var formReturnUrl = httpContext.Request.HasFormContentType
-            ? httpContext.Request.Form["returnUrl"].ToString()
-            : null;
-
-        if (httpContext.Request.Path.StartsWithSegments("/admin"))
-        {
-            AuthRateLimiting.SetAdminLockoutCookie(httpContext);
-            httpContext.Response.Redirect(AuthRateLimiting.BuildLoginRedirect(httpContext, "/admin/login", formReturnUrl, "locked", true));
-        }
-        else
-        {
-            AuthRateLimiting.SetLockoutCookie(httpContext);
-            httpContext.Response.Redirect(AuthRateLimiting.BuildLoginRedirect(httpContext, "/login", formReturnUrl, "locked"));
-        }
-
-        return ValueTask.CompletedTask;
-    };
-});
-
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
@@ -140,7 +113,6 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 
 app.UseHttpsRedirection();
 
-app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

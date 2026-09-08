@@ -3,7 +3,6 @@ using Frontend.Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Frontend.Data.Entities;
 using Frontend.Services;
@@ -19,12 +18,16 @@ public sealed class AdminAuthController(AppDbContext db) : ControllerBase
     private static readonly PasswordHasher<AdminUser> Hasher = new();
 
     [HttpPost("login")]
-    [EnableRateLimiting(AuthRateLimiting.AdminLoginPolicy)]
     public async Task<IActionResult> Login(
         [FromForm] string username,
         [FromForm] string password,
         [FromForm] string? returnUrl = null)
     {
+        if (AuthRateLimiting.HasAdminLockoutCookie(HttpContext))
+        {
+            return Redirect(AuthRateLimiting.BuildLoginRedirect(HttpContext, "/admin/login", returnUrl, "locked", true));
+        }
+
         var admin = await db.AdminUsers.FirstOrDefaultAsync(a => a.Username == username, HttpContext.RequestAborted);
 
         var gueltig = admin is not null
@@ -32,7 +35,9 @@ public sealed class AdminAuthController(AppDbContext db) : ControllerBase
 
         if (!gueltig || admin is null)
         {
-            return Redirect(AuthRateLimiting.BuildLoginRedirect(HttpContext, "/admin/login", returnUrl, "invalid", true));
+            var locked = AuthRateLimiting.RegisterFailedAttempt(HttpContext, true);
+            return Redirect(AuthRateLimiting.BuildLoginRedirect(
+                HttpContext, "/admin/login", returnUrl, locked ? "locked" : "invalid", true));
         }
 
         var claims = new List<Claim>
@@ -60,6 +65,7 @@ public sealed class AdminAuthController(AppDbContext db) : ControllerBase
                 AllowRefresh = true
             });
 
+        AuthRateLimiting.ClearFailedAttempts(HttpContext, true);
         AuthRateLimiting.ClearRedirectCookie(HttpContext, true);
         return Redirect(AuthRateLimiting.SanitizeReturnUrl(returnUrl) ?? "/admin");
     }

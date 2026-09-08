@@ -15,6 +15,9 @@
 	<MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive" Elevation="1">
 		<NavMenu />
 		<MudSpacer />
+		<MudText Typo="Typo.caption" Align="Align.Center" Class="pa-2">
+			Felix Becker · <a href="https://github.com/fbckr07/Abizeitung-2026-27" target="_blank" rel="noopener noreferrer">Quellcode auf GitHub</a>
+		</MudText>
 		<AuthorizeView>
 			<MudButton Color="Color.Primary" OnClick="@(() => OpenFeedbackDialog(context.User.Identity?.Name ?? ""))">Ideen und Probleme</MudButton>
 		</AuthorizeView>
