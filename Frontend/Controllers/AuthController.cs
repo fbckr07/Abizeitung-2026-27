@@ -49,7 +49,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
             });
 
         AuthRateLimiting.ClearRedirectCookie(HttpContext);
-        return Redirect(AuthRateLimiting.SanitizeReturnUrl(returnUrl) ?? "/");
+        return Redirect(AuthRateLimiting.SanitizeReturnUrl(returnUrl) ?? "/home");
     }
 
     [HttpPost("logout")]
