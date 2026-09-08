@@ -6,6 +6,7 @@ using Frontend.Data.Entities;
 using Frontend.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -150,6 +151,16 @@ app.MapStaticAssets();
 app.MapControllers();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+app.MapGet("/", async ([FromQuery] string? code) =>
+{
+    if (!string.IsNullOrEmpty(code))
+    {
+        return Results.Redirect($"/login/?code={code}");
+    }
+
+    return Results.Redirect("/login");
+});
 
 using (var scope = app.Services.CreateScope())
 {
