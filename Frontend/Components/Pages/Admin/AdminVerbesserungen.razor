@@ -9,7 +9,7 @@
 <MudGrid>
     @foreach (var f in feedbacks)
     {
-        <FeedbackCard Feedback="f"/>
+        <FeedbackCard OnChangedCallback="HandleChange" Feedback="f"/>
     }
 </MudGrid>
 
@@ -19,11 +19,16 @@
     private async Task LoadFeedback()
     {
         feedbacks = await FeedbackService.GetAllAsync();
-        feedbacks = feedbacks.OrderBy(f => f.CreatedAt).ToList();
+        feedbacks = feedbacks.Where(f => !f.Archived).OrderBy(f => f.CreatedAt).ToList();
     }
 
     protected override async Task OnInitializedAsync()
     {
         await LoadFeedback();
+    }
+
+    private void HandleChange()
+    {
+        feedbacks = feedbacks.Where(f => !f.Archived).OrderBy(f => f.CreatedAt).ToList();
     }
 }

@@ -1,5 +1,5 @@
 @page "/admin/fragen"
-@attribute [Authorize(Roles = "Admin")]
+@attribute [Authorize(Policy = Permissions.AdminFragen)]
 @layout AdminLayout
 @inject IRankingService RankingService
 

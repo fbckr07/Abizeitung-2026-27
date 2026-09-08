@@ -42,6 +42,11 @@ public sealed class AdminAuthController(AppDbContext db) : ControllerBase
             new(ClaimTypes.Role, "Admin")
         };
 
+        foreach (var permission in admin.Permissions)
+        {
+            claims.Add(new Claim("Recht", permission));
+        }
+
         var identity = new ClaimsIdentity(claims, AdminScheme);
         var principal = new ClaimsPrincipal(identity);
 

@@ -22,10 +22,14 @@
 {
     [Parameter]
     public required Feedback Feedback { get; set; }
+    
+    [Parameter]
+    public required Action OnChangedCallback { get; set; }
 
     private async Task Accept()
     {
         var result = await FeedbackService.AcceptFeedbackAsync(Feedback.Id);
+        OnChangedCallback();
         if (result)
         {
             Snackbar.Add("Feedback angenommen", Severity.Success);
@@ -39,6 +43,7 @@
     private async Task Decline()
     {
         var result = await FeedbackService.RejectFeedbackAsync(Feedback.Id);
+        OnChangedCallback();
         if (result)
         {
             Snackbar.Add("Feedback abgelehnt", Severity.Success);

@@ -10,4 +10,9 @@ public interface IAdminUserService
         string username,
         string password,
         CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(Guid adminId, CancellationToken cancellationToken = default);
+
+    Task SetPermissionAsync(Guid adminId, IReadOnlyList<string> permissions,
+        CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,6 @@
 @page "/admin/admins"
 @using Frontend.Data.DTOs
-@attribute [Authorize(Roles = "Admin")]
+@attribute [Authorize(Policy = Permissions.AdminList)]
 @layout AdminLayout
 @inject IAdminUserService AdminUserService
 @inject ISnackbar Snackbar
@@ -48,9 +48,65 @@
 <MudTable Items="_admins" Hover="true" Loading="_admins is null" Elevation="1">
     <HeaderContent>
         <MudTh>Benutzername</MudTh>
+        <MudTh>Rechte</MudTh>
+        <MudTh></MudTh>
+        <MudTh>Aktionen</MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="Benutzername">@context.Username</MudTd>
+        @if (_editingAdmin is not null && _editingAdmin.Id == context.Id)
+        {
+            <MudTd DataLabel="Benutzername">@context.Username</MudTd>
+            <MudTd DataLabel="Rechte">
+                @foreach (var (wert, permission) in Permissions.AdminPermissions)
+                {
+                    <MudCheckBox T="bool"
+                                 Value="_editingAdmin.Permissions.Contains(wert)"
+                                 ValueChanged="@(_checked => TogglePermission(wert, _checked))"
+                                 Label="@permission"
+                                 Dense="true"/>
+                }
+            </MudTd>
+            <MudTd>
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Delete"
+                           OnClick="@(() => DeleteAdminAsync(@context.Id))">
+                    Löschen
+                </MudButton>
+            </MudTd>
+            <MudTd DataLabel="Aktionen">
+                <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Primary" OnClick="SaveAsync" />
+                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editingAdmin = null)" />
+            </MudTd>
+        }
+        else
+        {
+            <MudTd DataLabel="Benutzername">@context.Username</MudTd>
+            <MudTd DataLabel="Rechte">
+                @if (context.Permissions.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Keine</MudText>
+                }
+                else
+                {
+                    @foreach (var permission in context.Permissions)
+                    {
+                        <MudChip T="string" Size="Size.Small" Class="mr-1">@ToDisplayName(permission)</MudChip>
+                    }
+                }
+            </MudTd>
+            <MudTd>
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Delete"
+                           OnClick="@(() => DeleteAdminAsync(@context.Id))">
+                    Löschen
+                </MudButton>
+            </MudTd>
+            <MudTd DataLabel="Aktionen">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => BeginEdit(context))" />
+            </MudTd>
+        }
     </RowTemplate>
     <NoRecordsContent>
         <MudText Class="pa-4">Keine Admins vorhanden.</MudText>
@@ -62,6 +118,7 @@
     private string _newUsername = string.Empty;
     private string _newPassword = string.Empty;
     private bool _saved;
+    private EditingModel? _editingAdmin;
 
     protected override async Task OnInitializedAsync()
     {
@@ -96,5 +153,70 @@
         {
             _saved = false;
         }
+    }
+
+    private async Task DeleteAdminAsync(Guid adminId)
+    {
+        try
+        {
+            await AdminUserService.DeleteAsync(adminId);
+        }
+        catch (ArgumentException e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+        }
+        catch (InvalidOperationException e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+        }
+        finally
+        {
+            await LoadAsync();
+        }
+    }
+
+    private sealed class EditingModel
+    {
+        public Guid Id { get; set; }
+        public List<string> Permissions { get; set; } = new();
+    }
+
+    private async Task TogglePermission(string permission, bool active)
+    {
+        if (_editingAdmin is null)
+            return;
+        
+        if (active && !_editingAdmin.Permissions.Contains(permission))
+        {
+            _editingAdmin.Permissions.Add(permission);
+        }
+        else if (!active)
+        {
+            _editingAdmin.Permissions.Remove(permission);
+        }
+    }
+
+    private string ToDisplayName(string permission) =>
+        Permissions.AdminPermissions.FirstOrDefault(r => r.Value == permission).DisplayName ?? permission;
+        
+
+    private void BeginEdit(AdminUserDto admin)
+    {
+        _editingAdmin = new EditingModel
+        {
+            Id = admin.Id,
+            Permissions = admin.Permissions.ToList()
+        };
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editingAdmin is null)
+            return;
+        
+        await AdminUserService.SetPermissionAsync(_editingAdmin.Id, _editingAdmin.Permissions);
+        _editingAdmin = null;
+        await LoadAsync();
+        Snackbar.Add("Rechte erfolgreich aktualisiert.", Severity.Success);
     }
 }

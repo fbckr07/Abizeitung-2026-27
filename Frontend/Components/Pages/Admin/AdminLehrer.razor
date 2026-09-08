@@ -1,6 +1,6 @@
 @page "/admin/lehrer"
 @using Frontend.Data.DTOs
-@attribute [Authorize(Roles = "Admin")]
+@attribute [Authorize(Policy = Permissions.AdminLehrer)]
 @layout AdminLayout
 @inject ITeacherManagementService TeacherService
 @inject ISnackbar Snackbar

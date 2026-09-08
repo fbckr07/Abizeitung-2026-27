@@ -73,6 +73,14 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(Permissions.SchülerKommentare, options => options.RequireClaim("Recht", Permissions.SchülerKommentare));
     options.AddPolicy("Database", options => options.RequireClaim(ClaimTypes.Role, "Admin"));
     // TODO: Eigene Klasse für Policies schreiben ._.
+    
+    //Admin Policies
+    options.AddPolicy(Permissions.AdminList, options => options.RequireClaim("Recht", Permissions.AdminList));
+    options.AddPolicy(Permissions.AdminErgebnisse, options => options.RequireClaim("Recht", Permissions.AdminErgebnisse));
+    options.AddPolicy(Permissions.AdminFragen, options => options.RequireClaim("Recht", Permissions.AdminFragen));
+    options.AddPolicy(Permissions.AdminLehrer, options => options.RequireClaim("Recht", Permissions.AdminLehrer));
+    options.AddPolicy(Permissions.AdminModeration, options => options.RequireClaim("Recht", Permissions.AdminModeration));
+    options.AddPolicy(Permissions.AdminSchueler, options => options.RequireClaim("Recht", Permissions.AdminSchueler));
 });
 builder.Services.AddCascadingAuthenticationState();
 
@@ -143,7 +151,8 @@ using (var scope = app.Services.CreateScope())
         var user = new AdminUser()
         {
             Username = app.Configuration["Admin:Username"] ?? "admin",
-            PasswordHash = string.Empty
+            PasswordHash = string.Empty,
+            Permissions = new List<string>() {Permissions.AdminList}
         };
         user.PasswordHash = hasher.HashPassword(user, app.Configuration["Admin:Password"] ?? "admin");
         await dbContext.AdminUsers.AddAsync(user);

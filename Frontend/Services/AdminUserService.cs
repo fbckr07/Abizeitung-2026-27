@@ -16,7 +16,7 @@ public sealed class AdminUserService(AppDbContext db) : IAdminUserService
         return await db.AdminUsers
             .AsNoTracking()
             .OrderBy(admin => admin.Username)
-            .Select(admin => new AdminUserDto(admin.Id, admin.Username))
+            .Select(admin => new AdminUserDto(admin.Id, admin.Username, admin.Permissions.ToList()))
             .ToListAsync(cancellationToken);
     }
 
@@ -56,13 +56,33 @@ public sealed class AdminUserService(AppDbContext db) : IAdminUserService
         {
             Id = Guid.NewGuid(),
             Username = username,
-            PasswordHash = string.Empty
+            PasswordHash = string.Empty,
+            Permissions = new List<string>() {"admin_default"}
         };
         admin.PasswordHash = Hasher.HashPassword(admin, password);
 
         db.AdminUsers.Add(admin);
         await db.SaveChangesAsync(cancellationToken);
 
-        return new AdminUserDto(admin.Id, admin.Username);
+        return new AdminUserDto(admin.Id, admin.Username, admin.Permissions.ToList());
+    }
+
+    public async Task SetPermissionAsync(Guid adminId, IReadOnlyList<string> permissions,
+        CancellationToken cancellationToken = default)
+    {
+        var admin = await db.AdminUsers.FirstOrDefaultAsync(a => a.Id == adminId, cancellationToken)
+            ?? throw new InvalidOperationException($"Admin-Benutzer mit ID {adminId} nicht gefunden.");
+
+        admin.Permissions = permissions.Distinct().ToList();
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(Guid adminId, CancellationToken cancellationToken = default)
+    {
+        var user = await db.AdminUsers.FirstOrDefaultAsync(a => a.Id == adminId, cancellationToken)
+            ?? throw new InvalidOperationException($"Admin-Benutzer mit ID {adminId} nicht gefunden.");
+        
+        db.AdminUsers.Remove(user);
+        await db.SaveChangesAsync(cancellationToken);
     }
 }

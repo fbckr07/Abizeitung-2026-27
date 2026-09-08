@@ -2,7 +2,7 @@
 @using System.Globalization
 @using System.Text
 @using Frontend.Data.DTOs
-@attribute [Authorize(Roles = "Admin")]
+@attribute [Authorize(Policy = Permissions.AdminSchueler)]
 @layout AdminLayout
 @inject IStudentManagementService StudentService
 @inject ISnackbar Snackbar
@@ -240,7 +240,7 @@
         Gender.Female => "Weiblich",
         _ => "Männlich",
     };
-
+    
     private sealed class EditingModel
     {
         public Guid Id { get; set; }

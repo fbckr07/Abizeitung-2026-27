@@ -1,6 +1,6 @@
 @page "/admin/moderation"
 @using Frontend.Data.DTOs
-@attribute [Authorize(Roles = "Admin")]
+@attribute [Authorize(Policy = Permissions.AdminModeration)]
 @layout AdminLayout
 @inject IModerationService ModerationService
 @inject ISnackbar Snackbar
