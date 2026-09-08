@@ -42,11 +42,6 @@ public sealed class AdminUserService(AppDbContext db) : IAdminUserService
             throw new ArgumentException("Das Passwort darf nicht leer sein.", nameof(password));
         }
 
-        if (password.Length < 8)
-        {
-            throw new ArgumentException("Das Passwort muss mindestens 8 Zeichen enthalten.", nameof(password));
-        }
-
         if (await db.AdminUsers.AnyAsync(admin => admin.Username == username, cancellationToken))
         {
             throw new InvalidOperationException("Dieser Benutzername ist bereits vergeben.");
@@ -83,6 +78,20 @@ public sealed class AdminUserService(AppDbContext db) : IAdminUserService
             ?? throw new InvalidOperationException($"Admin-Benutzer mit ID {adminId} nicht gefunden.");
         
         db.AdminUsers.Remove(user);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+    
+    public async Task ChangePasswordAsync(Guid adminId, string newPassword, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(newPassword))
+        {
+            throw new ArgumentException("Das Passwort darf nicht leer sein.", nameof(newPassword));
+        }
+
+        var admin = await db.AdminUsers.FirstOrDefaultAsync(a => a.Id == adminId, cancellationToken)
+            ?? throw new InvalidOperationException($"Admin-Benutzer mit ID {adminId} nicht gefunden.");
+
+        admin.PasswordHash = Hasher.HashPassword(admin, newPassword);
         await db.SaveChangesAsync(cancellationToken);
     }
 }

@@ -4,6 +4,7 @@
 @layout AdminLayout
 @inject IAdminUserService AdminUserService
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Admins</PageTitle>
 
@@ -50,6 +51,7 @@
         <MudTh>Benutzername</MudTh>
         <MudTh>Rechte</MudTh>
         <MudTh></MudTh>
+        <MudTh>Passwort</MudTh>
         <MudTh>Aktionen</MudTh>
     </HeaderContent>
     <RowTemplate>
@@ -72,6 +74,14 @@
                            StartIcon="@Icons.Material.Filled.Delete"
                            OnClick="@(() => DeleteAdminAsync(@context.Id))">
                     Löschen
+                </MudButton>
+            </MudTd>
+            <MudTd DataLabel="Passwort">
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Lock"
+                           OnClick="@(() => ChangePasswordAsync(@context.Id))">
+                    Ändern
                 </MudButton>
             </MudTd>
             <MudTd DataLabel="Aktionen">
@@ -101,6 +111,14 @@
                            StartIcon="@Icons.Material.Filled.Delete"
                            OnClick="@(() => DeleteAdminAsync(@context.Id))">
                     Löschen
+                </MudButton>
+            </MudTd>
+            <MudTd DataLabel="Passwort">
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Lock"
+                           OnClick="@(() => ChangePasswordAsync(@context.Id))">
+                    Ändern
                 </MudButton>
             </MudTd>
             <MudTd DataLabel="Aktionen">
@@ -218,5 +236,32 @@
         _editingAdmin = null;
         await LoadAsync();
         Snackbar.Add("Rechte erfolgreich aktualisiert.", Severity.Success);
+    }
+    
+    private async Task ChangePasswordAsync(Guid adminId)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ChangePasswordDialog.AdminId)] = adminId
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<ChangePasswordDialog>("Passwort ändern", parameters, options);
+        var result = await dialog.Result;
+        
+        if (!result?.Canceled ?? false)
+        {
+            Snackbar.Add("Passwort erfolgreich geändert.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Passwortänderung abgebrochen.", Severity.Info);
+        }
     }
 }

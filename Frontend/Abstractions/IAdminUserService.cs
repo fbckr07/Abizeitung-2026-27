@@ -15,4 +15,6 @@ public interface IAdminUserService
 
     Task SetPermissionAsync(Guid adminId, IReadOnlyList<string> permissions,
         CancellationToken cancellationToken = default);
+
+    Task ChangePasswordAsync(Guid adminId, string newPassword, CancellationToken cancellationToken = default);
 }
