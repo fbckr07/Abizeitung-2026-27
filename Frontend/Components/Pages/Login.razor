@@ -58,14 +58,11 @@
 </MudGrid>
 
 @code {
-    [SupplyParameterFromQuery(Name = "error")]
-    public string? Error { get; set; }
-
-    [SupplyParameterFromQuery(Name = "returnUrl")]
-    public string? ReturnUrl { get; set; }
-    
     [SupplyParameterFromQuery(Name = "code")]
     public string? Code { get; set; }
+
+    private string? Error { get; set; }
+    private string? ReturnUrl { get; set; }
 
     private string _code = string.Empty;
     private bool _isLockedOut;
@@ -79,6 +76,11 @@
     protected override void OnInitialized()
     {
         var httpContext = HttpContextAccessor.HttpContext;
+        var redirectState = httpContext is null
+            ? null
+            : AuthRateLimiting.GetRedirectState(httpContext);
+        Error = redirectState?.Error;
+        ReturnUrl = redirectState?.ReturnUrl;
         _isLockedOut = Error == "locked"
             || (httpContext is not null && AuthRateLimiting.HasLockoutCookie(httpContext));
 

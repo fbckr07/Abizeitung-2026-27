@@ -19,7 +19,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
 
         if (student is null)
         {
-            return Redirect(AuthRateLimiting.BuildLoginRedirect("/login", returnUrl, "invalid"));
+            return Redirect(AuthRateLimiting.BuildLoginRedirect(HttpContext, "/login", returnUrl, "invalid"));
         }
 
         var claims = new List<Claim>
@@ -48,6 +48,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
                 AllowRefresh = true
             });
 
+        AuthRateLimiting.ClearRedirectCookie(HttpContext);
         return Redirect(AuthRateLimiting.SanitizeReturnUrl(returnUrl) ?? "/");
     }
 

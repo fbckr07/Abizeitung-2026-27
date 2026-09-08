@@ -51,6 +51,12 @@ builder.Services.AddAuthentication(options =>
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.LoginPath = "/login";
+        options.Events.OnRedirectToLogin = context =>
+        {
+            var returnUrl = context.Request.PathBase + context.Request.Path + context.Request.QueryString;
+            context.Response.Redirect(AuthRateLimiting.BuildLoginRedirect(context.HttpContext, "/login", returnUrl, null));
+            return Task.CompletedTask;
+        };
         options.ExpireTimeSpan = TimeSpan.FromDays(7);
         options.SlidingExpiration = true;
     })
@@ -60,6 +66,12 @@ builder.Services.AddAuthentication(options =>
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.LoginPath = "/admin/login";
+        options.Events.OnRedirectToLogin = context =>
+        {
+            var returnUrl = context.Request.PathBase + context.Request.Path + context.Request.QueryString;
+            context.Response.Redirect(AuthRateLimiting.BuildLoginRedirect(context.HttpContext, "/admin/login", returnUrl, null, true));
+            return Task.CompletedTask;
+        };
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
     });
@@ -99,12 +111,12 @@ builder.Services.AddRateLimiter(options =>
         if (httpContext.Request.Path.StartsWithSegments("/admin"))
         {
             AuthRateLimiting.SetAdminLockoutCookie(httpContext);
-            httpContext.Response.Redirect(AuthRateLimiting.BuildLoginRedirect("/admin/login", formReturnUrl, "locked"));
+            httpContext.Response.Redirect(AuthRateLimiting.BuildLoginRedirect(httpContext, "/admin/login", formReturnUrl, "locked", true));
         }
         else
         {
             AuthRateLimiting.SetLockoutCookie(httpContext);
-            httpContext.Response.Redirect(AuthRateLimiting.BuildLoginRedirect("/login", formReturnUrl, "locked"));
+            httpContext.Response.Redirect(AuthRateLimiting.BuildLoginRedirect(httpContext, "/login", formReturnUrl, "locked"));
         }
 
         return ValueTask.CompletedTask;

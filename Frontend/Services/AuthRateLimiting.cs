@@ -1,6 +1,6 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.Http.Extensions;
 
 namespace Frontend.Services;
 
@@ -8,13 +8,18 @@ public static class AuthRateLimiting
 {
     public const string LoginPolicy = "login";
     public const string StatusCookie = "login_lockout";
+    public const string RedirectCookie = "login_redirect";
 
     public const string AdminLoginPolicy = "admin-login";
     public const string AdminStatusCookie = "admin_login_lockout";
+    public const string AdminRedirectCookie = "admin_login_redirect";
 
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(10);
     public const int PermitLimit = 10;
     public static readonly TimeSpan Lockout = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan RedirectLifetime = TimeSpan.FromMinutes(5);
+
+    public sealed record LoginRedirectState(string? ReturnUrl, string? Error);
 
     public static RateLimitPartition<string> PartitionByIp(HttpContext context)
     {
@@ -39,21 +44,59 @@ public static class AuthRateLimiting
             : null;
     }
 
-    public static string BuildLoginRedirect(string path, string? returnUrl, string? error)
+    public static string BuildLoginRedirect(HttpContext context, string path, string? returnUrl, string? error,
+        bool isAdmin = false)
     {
-        var qb = new QueryBuilder();
+        SetRedirectCookie(context, returnUrl, error, isAdmin);
+        return path;
+    }
+
+    public static LoginRedirectState? GetRedirectState(HttpContext context, bool isAdmin = false)
+    {
+        var cookieName = isAdmin ? AdminRedirectCookie : RedirectCookie;
+        var value = context.Request.Cookies[cookieName];
+        if (string.IsNullOrEmpty(value))
+        {
+            return null;
+        }
+
+        try
+        {
+            var state = JsonSerializer.Deserialize<LoginRedirectState>(value);
+            return state is null
+                ? null
+                : state with { ReturnUrl = SanitizeReturnUrl(state.ReturnUrl) };
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public static void ClearRedirectCookie(HttpContext context, bool isAdmin = false)
+    {
+        context.Response.Cookies.Delete(isAdmin ? AdminRedirectCookie : RedirectCookie);
+    }
+
+    private static void SetRedirectCookie(HttpContext context, string? returnUrl, string? error, bool isAdmin)
+    {
         var sanitized = SanitizeReturnUrl(returnUrl);
-        if (sanitized is not null)
+        if (sanitized is null && error is null)
         {
-            qb.Add("returnUrl", sanitized);
+            ClearRedirectCookie(context, isAdmin);
+            return;
         }
 
-        if (error is not null)
-        {
-            qb.Add("error", error);
-        }
-
-        return path + qb.ToQueryString();
+        context.Response.Cookies.Append(
+            isAdmin ? AdminRedirectCookie : RedirectCookie,
+            JsonSerializer.Serialize(new LoginRedirectState(sanitized, error)),
+            new CookieOptions
+            {
+                HttpOnly = true,
+                SameSite = SameSiteMode.Lax,
+                MaxAge = RedirectLifetime,
+                Expires = DateTimeOffset.UtcNow.Add(RedirectLifetime)
+            });
     }
 
     public static void SetLockoutCookie(HttpContext context)

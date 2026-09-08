@@ -32,7 +32,7 @@ public sealed class AdminAuthController(AppDbContext db) : ControllerBase
 
         if (!gueltig || admin is null)
         {
-            return Redirect(AuthRateLimiting.BuildLoginRedirect("/admin/login", returnUrl, "invalid"));
+            return Redirect(AuthRateLimiting.BuildLoginRedirect(HttpContext, "/admin/login", returnUrl, "invalid", true));
         }
 
         var claims = new List<Claim>
@@ -60,6 +60,7 @@ public sealed class AdminAuthController(AppDbContext db) : ControllerBase
                 AllowRefresh = true
             });
 
+        AuthRateLimiting.ClearRedirectCookie(HttpContext, true);
         return Redirect(AuthRateLimiting.SanitizeReturnUrl(returnUrl) ?? "/admin");
     }
 
