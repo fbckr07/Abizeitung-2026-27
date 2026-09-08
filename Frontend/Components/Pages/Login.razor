@@ -63,6 +63,9 @@
 
     [SupplyParameterFromQuery(Name = "returnUrl")]
     public string? ReturnUrl { get; set; }
+    
+    [SupplyParameterFromQuery(Name = "code")]
+    public string? Code { get; set; }
 
     private string _code = string.Empty;
     private bool _isLockedOut;
@@ -78,5 +81,10 @@
         var httpContext = HttpContextAccessor.HttpContext;
         _isLockedOut = Error == "locked"
             || (httpContext is not null && AuthRateLimiting.HasLockoutCookie(httpContext));
+
+        if (!string.IsNullOrEmpty(Code))
+        {
+            _code = Code;
+        }
     }
 }
