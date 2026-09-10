@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Frontend;
 using MudBlazor.Services;
 using Frontend.Components;
 using Frontend.Data;
@@ -28,6 +29,9 @@ builder.Services.AddScoped<IStudentManagementService, StudentManagementService>(
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.AddScoped<IFeedbackService, FeedbackService>();
+builder.Services.AddScoped<ICategoryAdminService, CategoryAdminService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IProfileValidator, ProfileValidator>();
 // TODO: Muss ich in separate Module aufteilen
 
 builder.Services.AddControllers();
@@ -92,8 +96,9 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(Permissions.AdminErgebnisse, options => options.RequireClaim("Recht", Permissions.AdminErgebnisse));
     options.AddPolicy(Permissions.AdminFragen, options => options.RequireClaim("Recht", Permissions.AdminFragen));
     options.AddPolicy(Permissions.AdminLehrer, options => options.RequireClaim("Recht", Permissions.AdminLehrer));
-    options.AddPolicy(Permissions.AdminModeration, options => options.RequireClaim("Recht", Permissions.AdminModeration));
+    options.AddPolicy(Permissions.AdminLehrerzitate, options => options.RequireClaim("Recht", Permissions.AdminLehrerzitate));
     options.AddPolicy(Permissions.AdminSchueler, options => options.RequireClaim("Recht", Permissions.AdminSchueler));
+    options.AddPolicy(Permissions.AdminSteckbriefe, options => options.RequireClaim("Recht", Permissions.AdminSteckbriefe));
 });
 builder.Services.AddCascadingAuthenticationState();
 

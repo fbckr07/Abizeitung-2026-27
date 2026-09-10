@@ -31,7 +31,7 @@ else if (FilteredStudents.Count == 0)
 }
 else
 {
-	<MudTable Items="FilteredStudents" Hover="true" Breakpoint="Breakpoint.None" Dense="true" Elevation="1">
+	<MudTable T="StudentOverviewDto" Items="FilteredStudents" Hover="true" Breakpoint="Breakpoint.None" Dense="true" Elevation="1" OnRowClick="HandleRowClick">
 		<HeaderContent>
 			<MudTh>Name</MudTh>
 			<MudTh>Kurs</MudTh>
@@ -119,4 +119,30 @@ else
 		Gender.Female => "Weiblich",
 		_ => "Divers"
 	};
+	
+	private async Task OpenProfileDialog(Guid targetUserId)
+	{
+		var parameters = new DialogParameters<ProfileDialog>
+		{
+			{ x => x.UserId, targetUserId } // Parameter übergeben
+		};
+
+		var options = new DialogOptions 
+		{ 
+			CloseButton = true, 
+			MaxWidth = MaxWidth.Medium, 
+			FullWidth = true 
+		};
+
+		await DialogService.ShowAsync<ProfileDialog>("Steckbrief", parameters, options);
+	}
+	
+	private async Task HandleRowClick(TableRowClickEventArgs<StudentOverviewDto> args)
+	{
+		var student = args.Item;
+		if (student != null)
+		{
+			await OpenProfileDialog(student.Id);
+		}
+	}
 }

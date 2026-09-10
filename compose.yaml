@@ -1,6 +1,11 @@
 ﻿services:
   frontend:
     image: frontend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
       context: .
       dockerfile: Frontend/Dockerfile
@@ -14,6 +19,19 @@
       - aspnet_keys:/app/keys
     depends_on:
       - postgres
+  
+  redirect:
+    image: redirect
+    build:
+      context: .
+      dockerfile: Bmr1Redirection/Dockerfile
+    ports:
+      - "10000:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+    depends_on:
+      - frontend
   
   postgres:
     image: postgres:latest

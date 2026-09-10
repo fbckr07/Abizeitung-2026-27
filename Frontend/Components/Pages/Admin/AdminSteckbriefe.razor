@@ -1,0 +1,223 @@
+@page "/admin/steckbriefe"
+@attribute [Authorize(Policy = Permissions.AdminSteckbriefe)]
+@inject ICategoryAdminService AdminService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@layout AdminLayout
+
+<PageTitle>Steckbrief-Kategorien</PageTitle>
+
+<div class="d-flex flex-wrap justify-space-between align-end gap-4 mb-6">
+    <div>
+        <MudText Typo="Typo.h4">Steckbriefe verwalten</MudText>
+    </div>
+    @if (_categories is not null)
+    {
+        <div class="d-flex flex-wrap gap-2">
+            <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined">@ActiveCategoryCount aktive Kategorien</MudChip>
+            <MudChip T="string" Color="Color.Default" Variant="Variant.Outlined">@FieldCount Felder</MudChip>
+        </div>
+    }
+</div>
+
+<MudPaper Class="pa-4 mb-6" Elevation="1" Outlined="true">
+    <div class="d-flex align-center gap-2 mb-3">
+        <MudIcon Icon="@Icons.Material.Filled.AddCircleOutline" Color="Color.Primary" />
+        <MudText Typo="Typo.h6">Neue Kategorie</MudText>
+    </div>
+    <MudGrid>
+        <MudItem xs="12" md="4">
+            <MudTextField T="string" @bind-Value="_newCategoryName" Label="Name" Placeholder="z. B. Über mich"
+                          Variant="Variant.Outlined" Required="true" Immediate="true" />
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudTextField T="string" @bind-Value="_newCategoryDescription" Label="Beschreibung (optional)"
+                          Placeholder="Kurze Erklärung" Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" md="2" Class="d-flex justify-end">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       Disabled="@string.IsNullOrWhiteSpace(_newCategoryName)" OnClick="CreateCategoryAsync"
+                       StartIcon="@Icons.Material.Filled.Add">
+                Hinzufügen
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_deleteError is not null)
+{
+    <MudAlert Severity="Severity.Warning"Class="mb-4" CloseIconClicked="() => _deleteError = null">
+        @_deleteError
+    </MudAlert>
+}
+
+@if (_categories is null)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <div class="d-flex flex-wrap justify-space-between align-center gap-3 mb-3">
+        <MudText Typo="Typo.h6">Kategorien</MudText>
+        <div class="d-flex gap-2">
+            <MudButton Variant="@(_showInactive ? Variant.Filled : Variant.Outlined)" Color="Color.Primary"
+                       Size="Size.Small" OnClick="() => _showInactive = true">
+                Alle (@_categories.Count)
+            </MudButton>
+            <MudButton Variant="@(!_showInactive ? Variant.Filled : Variant.Outlined)" Color="Color.Primary"
+                       Size="Size.Small" OnClick="() => _showInactive = false">
+                Nur aktive (@ActiveCategoryCount)
+            </MudButton>
+        </div>
+    </div>
+
+    @if (!_categories.Any(c => _showInactive || c.IsActive))
+    {
+        <MudAlert Severity="Severity.Info">Es gibt keine aktiven Kategorien.</MudAlert>
+    }
+    else
+    {
+        <MudExpansionPanels MultiExpansion="true">
+            @foreach (var category in _categories.Where(c => _showInactive || c.IsActive).OrderBy(c => c.SortOrder))
+            {
+                <MudExpansionPanel>
+                    <TitleContent>
+                        <div class="d-flex align-center justify-space-between gap-3" style="width:100%">
+                            <div class="d-flex align-center gap-3 min-width-0">
+                                <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Color="@(category.IsActive ? Color.Primary : Color.Default)" />
+                                <div class="min-width-0">
+                                    <MudText Typo="Typo.h6">@category.Name</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @(category.Fields.Count == 1 ? "1 Feld" : $"{category.Fields.Count} Felder")
+                                        @if (!string.IsNullOrWhiteSpace(category.Description))
+                                        {
+                                            <span> · @category.Description</span>
+                                        }
+                                    </MudText>
+                                </div>
+                                @if (!category.IsActive)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Default">Inaktiv</MudChip>
+                                }
+                            </div>
+                            <div @onclick:stopPropagation="true">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                                               OnClick="() => StartEdit(category)" aria-label="Kategorie bearbeiten" />
+                                <MudIconButton Icon="@(category.IsActive ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                                               Size="Size.Small" OnClick="() => ToggleActive(category)"
+                                               aria-label="@(category.IsActive ? "Deaktivieren" : "Aktivieren")" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                               OnClick="() => DeleteCategory(category.Id)" aria-label="Kategorie löschen" />
+                            </div>
+                        </div>
+                    </TitleContent>
+                    <ChildContent>
+                        @if (_editingCategoryId == category.Id)
+                        {
+                            <MudPaper Class="pa-3 mb-4" Outlined="true">
+                                <MudText Typo="Typo.subtitle2" Class="mb-2">Kategorie bearbeiten</MudText>
+                                <MudGrid>
+                                    <MudItem xs="12" md="5">
+                                        <MudTextField T="string" @bind-Value="_editName" Label="Name" Variant="Variant.Outlined" Required="true" />
+                                    </MudItem>
+                                    <MudItem xs="12" md="5">
+                                        <MudTextField T="string" @bind-Value="_editDescription" Label="Beschreibung (optional)" Variant="Variant.Outlined" />
+                                    </MudItem>
+                                    <MudItem xs="12" md="2" Class="d-flex gap-1 justify-end">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" OnClick="() => SaveCategoryEdit(category.Id)" aria-label="Änderungen speichern" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="CancelEdit" aria-label="Bearbeitung abbrechen" />
+                                    </MudItem>
+                                </MudGrid>
+                            </MudPaper>
+                        }
+                        <FieldEditor CategoryId="category.Id" />
+                    </ChildContent>
+                </MudExpansionPanel>
+            }
+        </MudExpansionPanels>
+    }
+}
+
+@code {
+
+    private List<ProfileCategory>? _categories;
+    private string _newCategoryName = string.Empty;
+    private string _newCategoryDescription = string.Empty;
+    private Guid? _editingCategoryId;
+    private string _editName = string.Empty;
+    private string _editDescription = string.Empty;
+    private string? _deleteError;
+    private bool _showInactive = true;
+
+    private int ActiveCategoryCount => _categories?.Count(c => c.IsActive) ?? 0;
+    private int FieldCount => _categories?.Sum(c => c.Fields.Count) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _categories = await AdminService.GetAllCategoriesAsync(includeInactive: true);
+    }
+    
+    public async Task CreateCategoryAsync()
+    {
+        await AdminService.CreateCategoryAsync(_newCategoryName, _newCategoryDescription);
+        _newCategoryName = string.Empty;
+        _newCategoryDescription = string.Empty;
+        Snackbar.Add("Kategorie erstellt", Severity.Success);
+        await LoadAsync();
+    }
+
+    private void StartEdit(ProfileCategory category)
+    {
+        _editingCategoryId = category.Id;
+        _editName = category.Name;
+        _editDescription = category.Description ?? string.Empty;
+    }
+
+    private void CancelEdit()
+    {
+        _editingCategoryId = null;
+    }
+
+    private async Task SaveCategoryEdit(Guid categoryId)
+    {
+        if (string.IsNullOrWhiteSpace(_editName)) return;
+
+        var category = _categories!.First(c => c.Id == categoryId);
+        await AdminService.UpdateCategoryAsync(categoryId, _editName.Trim(),
+            string.IsNullOrWhiteSpace(_editDescription) ? null : _editDescription.Trim());
+        CancelEdit();
+        Snackbar.Add("Kategorie aktualisiert.", Severity.Success);
+        await LoadAsync();
+    }
+    
+    private async Task ToggleActive(ProfileCategory category)
+    {
+        await AdminService.SetCategoryActiveAsync(category.Id, !category.IsActive);
+        await LoadAsync();
+    }
+    
+    private async Task DeleteCategory(Guid categoryId)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Kategorie löschen", "Bist du sicher?", yesText: "Löschen", cancelText: "Abbrechen");
+
+        if (confirmed != true) return;
+
+        _deleteError = null;
+        var success = await AdminService.DeleteCategoryAsync(categoryId);
+        if (!success)
+        {
+            _deleteError = "Kategorie enthält Felder mit bereits gespeicherten Werten und kann nicht gelöscht werden. Stattdessen deaktivieren.";
+        }
+        else
+        {
+            Snackbar.Add("Kategorie gelöscht.", Severity.Success);
+        }
+        await LoadAsync();
+    }
+}

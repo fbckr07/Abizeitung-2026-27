@@ -13,8 +13,9 @@ public static class Permissions
     public const string AdminFragen = "admin_fragen";
     public const string AdminLehrer = "admin_lehrer";
     public const string AdminList = "admin_list";
-    public const string AdminModeration = "admin_moderation";
+    public const string AdminLehrerzitate = "admin_lehrerzitate";
     public const string AdminSchueler = "admin_schueler";
+    public const string AdminSteckbriefe = "admin_steckbriefe";
     
     
     public static readonly IReadOnlyList<(string Value, string DisplayName)> Alle =
@@ -34,7 +35,8 @@ public static class Permissions
         (AdminFragen, "Admin Fragen"),
         (AdminLehrer, "Admin Lehrer"),
         (AdminList, "Admin List"),
-        (AdminModeration, "Admin Moderation"),
-        (AdminSchueler, "Admin Schüler")
+        (AdminLehrerzitate, "Admin Lehrerzitate"),
+        (AdminSchueler, "Admin Schüler"),
+        (AdminSteckbriefe, "Admin Steckbriefe")
     ];
 }

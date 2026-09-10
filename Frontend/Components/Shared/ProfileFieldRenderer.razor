@@ -1,0 +1,114 @@
+@using Frontend.Data.DTOs
+@using Frontend.Data.Enums
+
+<MudItem xs="12" Class="mb-2">
+    @switch (Field.Type)
+    {
+        case Data.Enums.FieldType.Text:
+            <MudTextField T="string" Label="@Field.Label" @bind-Value="Field.Value"
+                          Placeholder="@Field.Placeholder"
+                          Required="@Field.IsRequired"
+                          Error="@HasError" ErrorText="@ErrorMessage"
+                          Variant="Variant.Outlined" />
+            break;
+
+        case Data.Enums.FieldType.TextArea:
+            <MudTextField T="string" Label="@Field.Label" @bind-Value="Field.Value"
+                          Placeholder="@Field.Placeholder"
+                          Required="@Field.IsRequired"
+                          Lines="4"
+                          Error="@HasError" ErrorText="@ErrorMessage"
+                          Variant="Variant.Outlined" />
+            break;
+
+        case Data.Enums.FieldType.Number:
+            <MudNumericField T="double?" Label="@Field.Label" Value="NumberValue" ValueChanged="OnNumberChanged"
+                             Required="@Field.IsRequired"
+                             Error="@HasError" ErrorText="@ErrorMessage"
+                             Variant="Variant.Outlined" />
+            break;
+
+        case Data.Enums.FieldType.Date:
+            <MudDatePicker Label="@Field.Label" Date="DateValue" DateChanged="OnDateChanged"
+                           Required="@Field.IsRequired"
+                           Error="@HasError" ErrorText="@ErrorMessage"
+                           Variant="Variant.Outlined" />
+            break;
+
+        case Data.Enums.FieldType.Boolean:
+            <MudCheckBox T="bool" Label="@Field.Label" Value="BoolValue" ValueChanged="OnBoolChanged"
+                        Color="Color.Primary" />
+            break;
+
+        case Data.Enums.FieldType.Email:
+            <MudTextField T="string" Label="@Field.Label" @bind-Value="Field.Value"
+                          Placeholder="@Field.Placeholder"
+                          Required="@Field.IsRequired"
+                          InputType="InputType.Email"
+                          Error="@HasError" ErrorText="@ErrorMessage"
+                          Variant="Variant.Outlined" />
+            break;
+
+        case Data.Enums.FieldType.Url:
+            <MudTextField T="string" Label="@Field.Label" @bind-Value="Field.Value"
+                          Placeholder="@Field.Placeholder"
+                          Required="@Field.IsRequired"
+                          InputType="InputType.Url"
+                          Error="@HasError" ErrorText="@ErrorMessage"
+                          Variant="Variant.Outlined" />
+            break;
+
+        case Data.Enums.FieldType.SingleSelect:
+            <MudSelect T="Guid?" Label="@Field.Label" Value="SingleSelectValue" ValueChanged="OnSingleSelectChanged"
+                      Required="@Field.IsRequired"
+                      Error="@HasError" ErrorText="@ErrorMessage"
+                      Variant="Variant.Outlined">
+                @foreach (var opt in Field.Options)
+                {
+                    <MudSelectItem T="Guid?" Value="@((Guid?)opt.Id)">@opt.Label</MudSelectItem>
+                }
+            </MudSelect>
+            break;
+
+        case Data.Enums.FieldType.MultiSelect:
+            <MudSelect T="Guid" Label="@Field.Label" MultiSelection="true"
+                      SelectedValues="Field.SelectedOptionIds" SelectedValuesChanged="OnMultiSelectChanged"
+                      Required="@Field.IsRequired"
+                      Error="@HasError" ErrorText="@ErrorMessage"
+                      Variant="Variant.Outlined">
+                @foreach (var opt in Field.Options)
+                {
+                    <MudSelectItem T="Guid" Value="@opt.Id">@opt.Label</MudSelectItem>
+                }
+            </MudSelect>
+            break;
+    }
+</MudItem>
+
+@code {
+    [Parameter, EditorRequired] public FieldDto Field { get; set; } = default!;
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
+    
+    private double? NumberValue => double.TryParse(Field.Value, out var d) ? d : null;
+    private void OnNumberChanged(double? value) => Field.Value = value?.ToString();
+    
+    private DateTime? DateValue => DateTime.TryParse(Field.Value, out var dt) ? dt : null;
+    private void OnDateChanged(DateTime? value) => Field.Value = value?.ToString("yyyy-MM-dd");
+    
+    private bool BoolValue => bool.TryParse(Field.Value, out var b) && b;
+    private void OnBoolChanged(bool value) => Field.Value = value.ToString();
+    
+    private Guid? SingleSelectValue => Field.SelectedOptionIds.FirstOrDefault();
+    private void OnSingleSelectChanged(Guid? value)
+    {
+        Field.SelectedOptionIds = value.HasValue ? new List<Guid> { value.Value } : new List<Guid>();
+        Field.Value = value?.ToString();
+    }
+    
+    private void OnMultiSelectChanged(IEnumerable<Guid> values)
+    {
+        Field.SelectedOptionIds = values.ToList();
+    }
+}

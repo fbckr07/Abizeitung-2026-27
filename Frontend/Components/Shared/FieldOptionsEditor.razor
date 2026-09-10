@@ -1,0 +1,70 @@
+@inject ICategoryAdminService AdminService
+@inject ISnackbar Snackbar
+
+<MudPaper Class="pa-3" Outlined="true">
+    @if (_options is null)
+    {
+        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+    }
+    else
+    {
+        <MudChipSet T="string" Class="mb-2">
+            @foreach (var option in _options.OrderBy(o => o.SortOrder))
+            {
+                <MudChip T="string" OnClose="() => DeleteOption(option.Id)">@option.Label</MudChip>
+            }
+        </MudChipSet>
+
+        @if (_deleteError is not null)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">@_deleteError</MudAlert>
+        }
+
+        <div class="d-flex gap-2">
+            <MudTextField T="string" @bind-Value="_newLabel" Label="Neue Option" Variant="Variant.Outlined" Margin="Margin.Dense" Class="flex-grow-1" />
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       Disabled="@string.IsNullOrWhiteSpace(_newLabel)"
+                       OnClick="AddOption">
+                Hinzufügen
+            </MudButton>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public Guid FieldId { get; set; }
+
+    private List<ProfileFieldOption>? _options;
+    private string _newLabel = "";
+    private string? _deleteError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var field = await AdminService.GetFieldByIdAsync(FieldId);
+        _options = field?.Options ?? new List<ProfileFieldOption>();
+    }
+
+    private async Task AddOption()
+    {
+        var value = _newLabel.Trim().ToLowerInvariant().Replace(" ", "-");
+        await AdminService.AddOptionAsync(FieldId, value, _newLabel);
+        _newLabel = "";
+        await LoadAsync();
+    }
+
+    private async Task DeleteOption(Guid optionId)
+    {
+        _deleteError = null;
+        var success = await AdminService.DeleteOptionAsync(optionId);
+        if (!success)
+        {
+            _deleteError = "Option wurde bereits ausgewählt und kann nicht entfernt werden.";
+        }
+        await LoadAsync();
+    }
+}

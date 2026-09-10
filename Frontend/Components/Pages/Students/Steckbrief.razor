@@ -1,7 +1,113 @@
 @page "/steckbrief"
+@using System.Security.Claims
+@using Frontend.Data.DTOs
 @attribute [Authorize(Policy = Permissions.Steckbrief)]
+@inject IProfileService ProfileService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
 
 <PageTitle>Steckbrief</PageTitle>
-<MudText Typo="Typo.h4">Steckbrief</MudText>
 
-<MudAlert Severity="Severity.Error">Nicht fertig!</MudAlert>
+<MudText Typo="Typo.h4">Mein Steckbrief</MudText>
+
+@if (_categories is null)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    @foreach (var category in _categories)
+    {
+        <MudCard Class="mb-4" Elevation="2">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">@category.Name</MudText>
+                    @if (!string.IsNullOrWhiteSpace(category.Description))
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@category.Description</MudText>
+                    }
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    @foreach (var field in category.Fields)
+                    {
+                        <ProfileFieldRenderer Field="field" ErrorMessage="@GetError(field.Id)" />
+                    }
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    }
+
+    @if (_generalError is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-3">@_generalError</MudAlert>
+    }
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               OnClick="HandleSubmit" Disabled="@_isSaving">
+        @if (_isSaving)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+        }
+        Speichern
+    </MudButton>
+}
+
+
+@code
+{
+    private List<CategoryDto>? _categories;
+    private Dictionary<Guid, string> _errors = new();
+    private string? _generalError;
+    private bool _isSaving;
+    private Guid _userId;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        _userId = await ResolveCurrentUserIdAsync();
+        _categories = await ProfileService.GetFormForUserAsync(_userId);
+    }
+    
+    private string? GetError(Guid fieldId) =>
+        _errors.TryGetValue(fieldId, out var msg) ? msg : null;
+    
+    private async Task HandleSubmit()
+    {
+        _isSaving = true;
+        _generalError = null;
+        _errors.Clear();
+
+        var values = _categories!
+            .SelectMany(c => c.Fields)
+            .Select(f => new FieldValueInput
+            {
+                FieldId = f.Id,
+                Value = f.Value,
+                SelectedOptionIds = f.SelectedOptionIds
+            })
+            .ToList();
+
+        var result = await ProfileService.SaveAsync(_userId, values);
+
+        if (result.Success)
+        {
+            Snackbar.Add("Steckbrief wurde gespeichert.", Severity.Success);
+        }
+        else
+        {
+            _errors = result.Errors;
+            _generalError = "Bitte korrigiere die markierten Felder.";
+        }
+
+        _isSaving = false;
+    }
+    
+    private async Task<Guid> ResolveCurrentUserIdAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var claim = authState.User.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)
+                    ?? throw new InvalidOperationException("User nicht authentifiziert.");
+        return Guid.Parse(claim.Value);
+    }
+}

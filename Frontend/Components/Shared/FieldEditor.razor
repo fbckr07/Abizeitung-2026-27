@@ -1,0 +1,194 @@
+@using FieldType = Frontend.Data.Enums.FieldType
+@inject ICategoryAdminService AdminService
+@inject ISnackbar Snackbar
+
+@if (_fields is null)
+{
+    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+}
+else
+{
+    <MudTable Items="_fields.OrderBy(f => f.SortOrder)" Dense="true" Hover="true" Class="mb-3">
+        <HeaderContent>
+            <MudTh>Label</MudTh>
+            <MudTh>Typ</MudTh>
+            <MudTh>Pflicht</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            @if (_editingFieldId == context.Id)
+            {
+                <MudTd colspan="4">
+                    <MudGrid>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="string" @bind-Value="_editLabel" Label="Label"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="string" @bind-Value="_editPlaceholder" Label="Placeholder (optional)"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="2" Class="d-flex align-center">
+                            <MudCheckBox T="bool" @bind-Value="_editIsRequired" Label="Pflicht" Color="Color.Primary" />
+                        </MudItem>
+                        <MudItem xs="12" md="2" Class="d-flex justify-end align-center gap-1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                                           OnClick="() => SaveFieldEdit(context.Id)" aria-label="Feldänderungen speichern" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                           OnClick="CancelFieldEdit" aria-label="Feldbearbeitung abbrechen" />
+                        </MudItem>
+                    </MudGrid>
+                </MudTd>
+            }
+            else
+            {
+                <MudTd DataLabel="Label">@context.Label</MudTd>
+                <MudTd DataLabel="Typ">@context.Type</MudTd>
+                <MudTd DataLabel="Pflicht">
+                    @if (context.IsRequired)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small" />
+                }
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                                   OnClick="() => StartFieldEdit(context)" aria-label="Feld bearbeiten" />
+                    @if (context.Type is FieldType.SingleSelect or FieldType.MultiSelect)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Text"
+                               OnClick="() => ToggleOptions(context.Id)">
+                        Optionen (@context.Options.Count)
+                    </MudButton>
+                }
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="() => DeleteField(context.Id)" aria-label="Feld löschen" />
+                </MudTd>
+            }
+        </RowTemplate>
+        <ChildRowContent>
+            @if (_expandedFieldId == context.Id)
+            {
+                <MudTr>
+                    <MudTd colspan="4">
+                        <FieldOptionsEditor FieldId="context.Id" />
+                    </MudTd>
+                </MudTr>
+            }
+        </ChildRowContent>
+    </MudTable>
+}
+
+<MudPaper Class="pa-3" Outlined="true">
+    <MudText Typo="Typo.subtitle2" Class="mb-2">Neues Feld</MudText>
+    <MudGrid>
+        <MudItem xs="12" md="3">
+            <MudTextField T="string" @bind-Value="_newLabel" Label="Label" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="12" md="3">
+            <MudSelect T="FieldType" @bind-Value="_newType" Label="Typ" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var type in Enum.GetValues<FieldType>())
+                {
+                    <MudSelectItem T="FieldType" Value="@type">@type</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="2" Class="d-flex align-center">
+            <MudCheckBox T="bool" @bind-Value="_newIsRequired" Label="Pflicht" Color="Color.Primary" />
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudTextField T="string" @bind-Value="_newPlaceholder" Label="Placeholder (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+    </MudGrid>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2"
+               Disabled="@string.IsNullOrWhiteSpace(_newLabel)"
+               OnClick="AddField">
+        Feld hinzufügen
+    </MudButton>
+</MudPaper>
+
+@if (_deleteError is not null)
+{
+    <MudAlert Severity="Severity.Warning" Class="mt-2" CloseIconClicked="() => _deleteError = null">
+        @_deleteError
+    </MudAlert>
+}
+
+
+@code
+{
+    [Parameter, EditorRequired] public Guid CategoryId { get; set; }
+
+    private List<ProfileField>? _fields;
+    private Guid? _expandedFieldId;
+    private Guid? _editingFieldId;
+    private string? _deleteError;
+
+    private string _newLabel = "";
+    private FieldType _newType = FieldType.Text;
+    private bool _newIsRequired;
+    private string? _newPlaceholder;
+    private string _editLabel = "";
+    private string? _editPlaceholder;
+    private bool _editIsRequired;
+    
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _fields = await AdminService.GetFieldsByCategoryAsync(CategoryId);
+    }
+
+    private async Task AddField()
+    {
+        await AdminService.AddFieldAsync(CategoryId, _newLabel, _newType, _newIsRequired, _newPlaceholder);
+        _newLabel = "";
+        _newPlaceholder = null;
+        _newIsRequired = false;
+        _newType = FieldType.Text;
+        Snackbar.Add("Feld hinzugefügt.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private void StartFieldEdit(ProfileField field)
+    {
+        _editingFieldId = field.Id;
+        _editLabel = field.Label;
+        _editPlaceholder = field.Placeholder;
+        _editIsRequired = field.IsRequired;
+    }
+
+    private void CancelFieldEdit()
+    {
+        _editingFieldId = null;
+    }
+
+    private async Task SaveFieldEdit(Guid fieldId)
+    {
+        if (string.IsNullOrWhiteSpace(_editLabel)) return;
+
+        await AdminService.UpdateFieldAsync(fieldId, _editLabel.Trim(), _editIsRequired,
+            string.IsNullOrWhiteSpace(_editPlaceholder) ? null : _editPlaceholder.Trim());
+        CancelFieldEdit();
+        Snackbar.Add("Feld aktualisiert.", Severity.Success);
+        await LoadAsync();
+    }
+    
+    private async Task DeleteField(Guid fieldId)
+    {
+        _deleteError = null;
+        var success = await AdminService.DeleteFieldAsync(fieldId);
+        if (!success)
+        {
+            _deleteError = "Feld hat bereits gespeicherte Werte und kann nicht gelöscht werden.";
+        }
+        await LoadAsync();
+    }
+    
+    private void ToggleOptions(Guid fieldId)
+    {
+        _expandedFieldId = _expandedFieldId == fieldId ? null : fieldId;
+    }
+}

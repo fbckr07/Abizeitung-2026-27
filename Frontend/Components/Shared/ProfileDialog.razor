@@ -1,0 +1,92 @@
+@using Frontend.Data.DTOs
+@inject IProfileService ProfileService
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Steckbrief</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_categories is null)
+        {
+            <div class="d-flex justify-center my-4">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            </div>
+        }
+        else if (!HasAnyValue())
+        {
+            <MudAlert Severity="Severity.Info">Es wurde noch kein Steckbrief ausgefüllt.</MudAlert>
+        }
+        else
+        {
+            @foreach (var category in _categories)
+            {
+                var filledFields = category.Fields
+                    .Where(f => !string.IsNullOrWhiteSpace(f.Value) || f.SelectedOptionIds.Any())
+                    .ToList();
+
+                if (filledFields.Count == 0) continue;
+
+                <MudCard Class="mb-4" Elevation="1">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">@category.Name</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudList T="string" Dense="true">
+                            @foreach (var field in filledFields)
+                            {
+                                <MudListItem T="string">
+                                    <MudText Typo="Typo.subtitle2">@field.Label</MudText>
+                                    <MudText Typo="Typo.body1">@FormatValue(field)</MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudCardContent>
+                </MudCard>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Schließen</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+    [CascadingParameter] 
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] 
+    public Guid UserId { get; set; }
+
+    private List<CategoryDto>? _categories;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _categories = await ProfileService.GetProfileAsync(UserId);
+    }
+
+    private bool HasAnyValue() =>
+        _categories?.Any(c => c.Fields.Any(f => !string.IsNullOrWhiteSpace(f.Value) || f.SelectedOptionIds.Any())) ?? false;
+
+    private string FormatValue(FieldDto field)
+    {
+        if (field.Type is Data.Enums.FieldType.SingleSelect or Data.Enums.FieldType.MultiSelect)
+        {
+            var labels = field.Options
+                .Where(o => field.SelectedOptionIds.Contains(o.Id))
+                .Select(o => o.Label);
+            return string.Join(", ", labels);
+        }
+
+        if (field.Type == Data.Enums.FieldType.Boolean)
+        {
+            return bool.TryParse(field.Value, out var b) && b ? "Ja" : "Nein";
+        }
+
+        return field.Value ?? "";
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+}

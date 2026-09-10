@@ -74,6 +74,6 @@ public sealed class AdminAuthController(AppDbContext db) : ControllerBase
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync(AdminScheme);
-        return Redirect("/");
+        return Redirect("/home");
     }
 }
