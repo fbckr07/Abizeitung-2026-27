@@ -20,19 +20,6 @@
     depends_on:
       - postgres
   
-  redirect:
-    image: redirect
-    build:
-      context: .
-      dockerfile: Bmr1Redirection/Dockerfile
-    ports:
-      - "10000:80"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:80
-    depends_on:
-      - frontend
-  
   postgres:
     image: postgres:latest
     environment:
