@@ -19,4 +19,6 @@ public sealed class TeacherQuote
     public Student? SubmittedByStudent { get; set; }
 
     public Teacher Teacher { get; set; } = null!;
+    
+    public ICollection<TeacherQuoteLike> Likes { get; set; } = new List<TeacherQuoteLike>();
 }

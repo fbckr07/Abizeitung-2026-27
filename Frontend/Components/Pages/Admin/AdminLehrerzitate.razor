@@ -3,70 +3,102 @@
 @attribute [Authorize(Policy = Permissions.AdminLehrerzitate)]
 @layout AdminLayout
 @inject IModerationService ModerationService
+@inject ITeacherQuoteLikeService TeacherQuoteLikeService
 @inject ISnackbar Snackbar
 
 <PageTitle>Lehrerzitate</PageTitle>
 
 <MudText Typo="Typo.h4" GutterBottom="true">Lehrerzitate</MudText>
 
-@if (_quotes is null)
-{
-    <MudProgressCircular Indeterminate="true" Color="Color.Primary"/>
-}
-else if (_quotes.Count == 0)
-{
-    <MudAlert Severity="Severity.Info">Keine offenen Lehrerzitate.</MudAlert>
-}
-else
-{
-    @foreach (var zitat in _quotes)
-    {
-        <MudCard Class="mb-4">
-            <MudCardContent>
-                <MudText Typo="Typo.subtitle1">@zitat.TeacherName</MudText>
-                <MudText Typo="Typo.body1">„@zitat.Quote"</MudText>
-                @if (!string.IsNullOrWhiteSpace(zitat.Context))
-                {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">@zitat.Context</MudText>
-                }
-                <MudStack Row="true" Class="mt-2">
-                    <MudButton Variant="Variant.Filled" Color="Color.Success"
-                               OnClick="@(() => FreigebenZitatAsync(zitat.Id))">
-                        Freigeben
-                    </MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Error"
-                               OnClick="@(() => AblehnenZitatAsync(zitat.Id))">
-                        Ablehnen
-                    </MudButton>
-                </MudStack>
-            </MudCardContent>
-        </MudCard>
-    }
-}
+<MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true">
+    <MudTabPanel Text="Offene Lehrerzitate">
+        @if (_quotes is null)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary"/>
+        }
+        else if (_quotes.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">Keine offenen Lehrerzitate.</MudAlert>
+        }
+        else
+        {
+            @foreach (var zitat in _quotes)
+            {
+                <MudCard Class="mb-4">
+                    <MudCardContent>
+                        <MudText Typo="Typo.subtitle1">@zitat.TeacherName</MudText>
+                        <MudText Typo="Typo.body1">„@zitat.Quote"</MudText>
+                        @if (!string.IsNullOrWhiteSpace(zitat.Context))
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@zitat.Context</MudText>
+                        }
+                        <MudStack Row="true" Class="mt-2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                                       OnClick="@(() => FreigebenZitatAsync(zitat.Id))">
+                                Freigeben
+                            </MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                                       OnClick="@(() => AblehnenZitatAsync(zitat.Id))">
+                                Ablehnen
+                            </MudButton>
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            }
+        }
+    </MudTabPanel>
+    <MudTabPanel Text="Likes">
+        @if (_likeStats is null)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary"/>
+        }
+        else if (_likeStats.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">Keine Zitate vorhanden.</MudAlert>
+        }
+        else
+        {
+            <MudTable Items="@_likeStats" Hover="true" Elevation="0" Dense="true">
+                <HeaderContent>
+                    <MudTh>Lehrer</MudTh>
+                    <MudTh>Zitat</MudTh>
+                    <MudTh Style="text-align:right">Likes</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Lehrer">@context.TeacherName</MudTd>
+                    <MudTd DataLabel="Zitat">
+                        „@context.Quote"
+                        @if (!string.IsNullOrWhiteSpace(context.Context))
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@context.Context</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Likes" Style="text-align:right">
+                        <MudStack Row="true" Justify="Justify.FlexEnd" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Favorite" Color="Color.Error" Size="Size.Small" />
+                            <MudText Typo="Typo.body1">@context.LikeCount</MudText>
+                        </MudStack>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudTabPanel>
+</MudTabs>
 
 @code {
-    private IReadOnlyList<OpenProfileDto>? _profiles;
     private IReadOnlyList<OpenQuoteDto>? _quotes;
+    private IReadOnlyList<QuoteLikeStatDto>? _likeStats;
     private readonly Dictionary<Guid, string> _comments = [];
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
+        _likeStats = await TeacherQuoteLikeService.GetQuoteLikeLeaderboardAsync();
     }
 
     private async Task LoadAsync()
     {
         _quotes = await ModerationService.GetOpenQuotesAsync();
-    }
-
-    private string GetKommentar(Guid profilId)
-    {
-        return _comments.GetValueOrDefault(profilId, string.Empty);
-    }
-
-    private void SetKommentar(Guid profilId, string value)
-    {
-        _comments[profilId] = value;
     }
 
     private async Task FreigebenZitatAsync(Guid id)
@@ -82,5 +114,4 @@ else
         Snackbar.Add("Zitat abgelehnt.", Severity.Info);
         await LoadAsync();
     }
-
 }

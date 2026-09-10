@@ -489,6 +489,31 @@ namespace Frontend.Migrations
                     b.ToTable("TeacherQuotes");
                 });
 
+            modelBuilder.Entity("Frontend.Data.Entities.TeacherQuoteLike", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TeacherQuoteId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("TeacherQuoteId", "StudentId")
+                        .IsUnique();
+
+                    b.ToTable("TeacherQuoteLikes");
+                });
+
             modelBuilder.Entity("Frontend.Data.Entities.TeacherVote", b =>
                 {
                     b.Property<Guid>("Id")
@@ -653,6 +678,25 @@ namespace Frontend.Migrations
                     b.Navigation("Teacher");
                 });
 
+            modelBuilder.Entity("Frontend.Data.Entities.TeacherQuoteLike", b =>
+                {
+                    b.HasOne("Frontend.Data.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Frontend.Data.Entities.TeacherQuote", "TeacherQuote")
+                        .WithMany("Likes")
+                        .HasForeignKey("TeacherQuoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+
+                    b.Navigation("TeacherQuote");
+                });
+
             modelBuilder.Entity("Frontend.Data.Entities.TeacherVote", b =>
                 {
                     b.HasOne("Frontend.Data.Entities.TeacherCategory", "TeacherCategory")
@@ -703,6 +747,11 @@ namespace Frontend.Migrations
             modelBuilder.Entity("Frontend.Data.Entities.StudentProfile", b =>
                 {
                     b.Navigation("Values");
+                });
+
+            modelBuilder.Entity("Frontend.Data.Entities.TeacherQuote", b =>
+                {
+                    b.Navigation("Likes");
                 });
 #pragma warning restore 612, 618
         }

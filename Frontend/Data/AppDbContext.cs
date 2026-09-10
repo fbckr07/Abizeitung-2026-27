@@ -25,6 +25,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
     
+    public DbSet<TeacherQuoteLike> TeacherQuoteLikes => Set<TeacherQuoteLike>();
+    
     // Steckbriefe
     public DbSet<ProfileCategory> ProfileCategories => Set<ProfileCategory>();
     public DbSet<ProfileField> ProfileFields => Set<ProfileField>();
@@ -326,6 +328,43 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasIndex(vo => new { vo.ProfileValueId, vo.FieldOptionId }).IsUnique();
+        });
+
+        modelBuilder.Entity<TeacherQuoteLike>(entity =>
+        {
+            entity.HasIndex(i => new { i.TeacherQuoteId, i.StudentId })
+                .IsUnique();
+
+            entity.HasKey(l => l.Id);
+            
+            entity.Property(l => l.Id)
+                .IsRequired()
+                .ValueGeneratedOnAdd();
+
+            entity.Property(l => l.TeacherQuoteId)
+                .IsRequired();
+
+            entity.Property(l => l.StudentId)
+                .IsRequired();
+
+            entity.Property(l => l.CreatedAt)
+                .IsRequired();
+            
+            entity.HasIndex(l => new { l.TeacherQuoteId, l.StudentId })
+                .IsUnique()
+                .HasDatabaseName("IX_TeacherQuoteLikes_TeacherQuoteId_StudentId");
+            
+            // Zitat gelöscht -> Likes werden mitgelöscht
+            entity.HasOne(l => l.TeacherQuote)
+                .WithMany(q => q.Likes)
+                .HasForeignKey(l => l.TeacherQuoteId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Schüler gelöscht -> Likes werden mitgelöscht
+            entity.HasOne(l => l.Student)
+                .WithMany()
+                .HasForeignKey(l => l.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

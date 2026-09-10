@@ -3,6 +3,7 @@
 @using System.Security.Claims
 @using Frontend.Data.Records
 @inject ITeacherQuoteService TeacherQuoteService
+@inject ITeacherQuoteLikeService LikeService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
 
@@ -61,6 +62,16 @@
                         <MudText Typo="Typo.body2" Class="mt-1" Color="Color.Secondary">@context.Context</MudText>
                     }
                 </MudCardContent>
+                <MudCardActions Class="pt-0">
+                    <MudIconButton Icon="@(_likedQuoteIds.Contains(context.Id) ? Icons.Material.Filled.Favorite : Icons.Material.Outlined.FavoriteBorder)"
+                                   Color="@(_likedQuoteIds.Contains(context.Id) ? Color.Error : Color.Default)"
+                                   Size="Size.Small"
+                                   Disabled="_busyQuoteIds.Contains(context.Id)"
+                                   OnClick="@(() => ToggleLikeAsync(context.Id))" />
+                    <MudText Typo="Typo.body2" Class="align-self-center">
+                        @_likeCounts.GetValueOrDefault(context.Id)
+                    </MudText>
+                </MudCardActions>
             </MudCard>
         </MudTd>
     </RowTemplate>
@@ -81,6 +92,10 @@
     private bool _sentSuccessful;
     private Guid _studentId;
     private IReadOnlyList<CandidateDto> _teacherList = [];
+
+    private Dictionary<Guid, int> _likeCounts = new();
+    private HashSet<Guid> _likedQuoteIds = new();
+    private readonly HashSet<Guid> _busyQuoteIds = new();
 
     private readonly TableGroupDefinition<TeacherQuoteDto> _groups = new()
     {
@@ -111,7 +126,83 @@
     private async Task<TableData<TeacherQuoteDto>> ServerReloadAsync(TableState state, CancellationToken cancellationToken)
     {
         var page = await TeacherQuoteService.GetAcceptedQuotesAsync(state.Page, state.PageSize, cancellationToken);
+
+        var idsOnPage = page.Quotes.Select(q => q.Id).ToArray();
+
+        // Like-Zustände nur für die aktuell sichtbare Seite laden (kein N+1)
+        var likedTask = _studentId != Guid.Empty
+            ? LikeService.GetLikedQuoteIdsAsync(_studentId, idsOnPage, cancellationToken)
+            : Task.FromResult<IReadOnlySet<Guid>>(new HashSet<Guid>());
+        var countsTask = LikeService.GetLikeCountsAsync(idsOnPage, cancellationToken);
+
+        await Task.WhenAll(likedTask, countsTask);
+
+        _likedQuoteIds = likedTask.Result.ToHashSet();
+        _likeCounts = countsTask.Result.ToDictionary(x => x.Key, x => x.Value);
+
         return new TableData<TeacherQuoteDto> { TotalItems = page.TotalCount, Items = page.Quotes };
+    }
+
+    private async Task ToggleLikeAsync(Guid quoteId)
+    {
+        if (_studentId == Guid.Empty)
+        {
+            Snackbar.Add("Liken ist nur für angemeldete Schüler möglich.", Severity.Warning);
+            return;
+        }
+
+        if (!_busyQuoteIds.Add(quoteId))
+        {
+            return;
+        }
+
+        var wasLiked = _likedQuoteIds.Contains(quoteId);
+
+        // Optimistisches Update
+        if (wasLiked)
+        {
+            _likedQuoteIds.Remove(quoteId);
+            _likeCounts[quoteId] = Math.Max(0, _likeCounts.GetValueOrDefault(quoteId) - 1);
+        }
+        else
+        {
+            _likedQuoteIds.Add(quoteId);
+            _likeCounts[quoteId] = _likeCounts.GetValueOrDefault(quoteId) + 1;
+        }
+
+        StateHasChanged();
+
+        try
+        {
+            var isLikedNow = await LikeService.ToggleLikeAsync(quoteId, _studentId);
+
+            // Serverstand übernehmen, falls er vom optimistischen Update abweicht
+            if (isLikedNow != !wasLiked)
+            {
+                if (isLikedNow) _likedQuoteIds.Add(quoteId); else _likedQuoteIds.Remove(quoteId);
+                _likeCounts[quoteId] = await LikeService.GetLikeCountAsync(quoteId);
+            }
+        }
+        catch
+        {
+            // Rollback bei Fehler
+            if (wasLiked)
+            {
+                _likedQuoteIds.Add(quoteId);
+                _likeCounts[quoteId] = _likeCounts.GetValueOrDefault(quoteId) + 1;
+            }
+            else
+            {
+                _likedQuoteIds.Remove(quoteId);
+                _likeCounts[quoteId] = Math.Max(0, _likeCounts.GetValueOrDefault(quoteId) - 1);
+            }
+
+            Snackbar.Add("Like konnte nicht gespeichert werden.", Severity.Error);
+        }
+        finally
+        {
+            _busyQuoteIds.Remove(quoteId);
+        }
     }
 
     private async Task SubmitAsync()

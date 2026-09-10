@@ -32,6 +32,7 @@ builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 builder.Services.AddScoped<ICategoryAdminService, CategoryAdminService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IProfileValidator, ProfileValidator>();
+builder.Services.AddScoped<ITeacherQuoteLikeService, TeacherQuoteLikeService>();
 // TODO: Muss ich in separate Module aufteilen
 
 builder.Services.AddControllers();
@@ -110,7 +111,6 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
@@ -158,8 +158,6 @@ using (var scope = app.Services.CreateScope())
         await dbContext.AdminUsers.AddAsync(user);
         await dbContext.SaveChangesAsync();
     }
-
-    
 }
 
 app.Run();
