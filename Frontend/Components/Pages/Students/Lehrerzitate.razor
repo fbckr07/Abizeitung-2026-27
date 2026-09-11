@@ -69,6 +69,12 @@
         <MudTd>
             <MudCard Class="mb-2" Elevation="1">
                 <MudCardContent>
+                    @if (_sortMode == TeacherQuoteSortMode.CreatedAtDesc)
+                    {
+                        <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-1">
+                            @context.TeacherName
+                        </MudText>
+                    }
                     <MudText Typo="Typo.body1">„@context.Quote"</MudText>
                     @if (!string.IsNullOrWhiteSpace(context.Context))
                     {
