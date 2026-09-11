@@ -1,4 +1,5 @@
 using Frontend.Data.Entities;
+using Frontend.Data.Enums;
 using Frontend.Data.Records;
 
 namespace Frontend.Services;
@@ -17,5 +18,6 @@ public interface ITeacherQuoteService
     Task<TeacherQuotePage> GetAcceptedQuotesAsync(
         int page,
         int pageSize,
+        TeacherQuoteSortMode sortMode,
         CancellationToken cancellationToken = default);
 }

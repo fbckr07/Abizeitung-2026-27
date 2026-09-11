@@ -1,5 +1,6 @@
 using Frontend.Data;
 using Frontend.Data.Entities;
+using Frontend.Data.Enums;
 using Frontend.Data.Records;
 using Microsoft.EntityFrameworkCore;
 
@@ -63,6 +64,7 @@ public sealed class TeacherQuoteService(IDbContextFactory<AppDbContext> dbFactor
     public async Task<TeacherQuotePage> GetAcceptedQuotesAsync(
         int page,
         int pageSize,
+        TeacherQuoteSortMode sortMode,
         CancellationToken cancellationToken = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
@@ -83,9 +85,13 @@ public sealed class TeacherQuoteService(IDbContextFactory<AppDbContext> dbFactor
 
         var totalCount = await query.CountAsync(cancellationToken);
 
+        query = sortMode switch
+        {
+            TeacherQuoteSortMode.CreatedAtDesc => query.OrderByDescending(z => z.CreatedAt),
+            _ => query.OrderBy(z => z.Teacher.Name).ThenByDescending(z => z.CreatedAt)
+        };
+
         var zitate = await query
-            .OrderBy(z => z.Teacher.Name)
-            .ThenByDescending(z => z.CreatedAt)
             .Skip(page * pageSize)
             .Take(pageSize)
             .Select(z => new TeacherQuoteDto(
